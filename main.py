@@ -49,8 +49,14 @@ def auto_ping():
     while True:
         try:
             if RENDER_URL:
-                requests.get(f"{RENDER_URL}/health", timeout=10)
-                print(f"🏓 Auto-ping: {datetime.now().strftime('%H:%M:%S')}")
+                # Garante que a URL tem o protocolo
+                url = RENDER_URL if RENDER_URL.startswith('http') else f"https://{RENDER_URL}"
+                response = requests.get(f"{url}/health", timeout=10)
+                print(f"🏓 Auto-ping OK [{response.status_code}]: {datetime.now().strftime('%H:%M:%S')}")
+            else:
+                # Se RENDER_URL não estiver configurada, pinga localhost
+                requests.get("http://localhost:5000/health", timeout=5)
+                print(f"🏓 Auto-ping local: {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             print(f"❌ Erro auto-ping: {e}")
         time.sleep(PING_INTERVAL)
