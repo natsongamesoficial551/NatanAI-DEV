@@ -91,7 +91,7 @@ INFORMACOES_OFICIAIS = {
         "professional": {
             "mensalidade": "R$ 79,99",
             "desenvolvimento_inicial": "R$ 530,00",
-            "ia_opcional": "R$ 115,00/mês",
+            "ia_opcional": "Opcional, precisa organizar preços com o Natan",
             "descricao": "Design personalizado avançado, SEO, APIs, domínio personalizado"
         }
     },
@@ -263,10 +263,6 @@ def analisar_intencao(pergunta):
         p = pergunta.lower().strip()
         
         intencoes = {
-            "saudacao": 0,
-            "despedida": 0,
-            "sobre_natan": 0,
-            "sobre_natanai": 0,
             "precos": 0,
             "planos": 0,
             "contato": 0,
@@ -280,27 +276,22 @@ def analisar_intencao(pergunta):
             "seo": 0,
             "diferenciais": 0,
             "projetos_especificos": 0,
+            "sobre_natan": 0,
             "geral": 0
         }
         
         # PALAVRAS-CHAVE POR CATEGORIA
         
-        palavras_saudacao = [
+        palavras_conversa_casual = [
             "oi", "olá", "ola", "hey", "bom dia", "boa tarde", "boa noite",
-            "tudo bem", "como vai", "e ai"
-        ]
-        
-        palavras_despedida = [
-            "tchau", "bye", "até logo", "até mais", "obrigado", "valeu", "flw"
+            "tudo bem", "como vai", "e ai", "tchau", "bye", "obrigado", "valeu",
+            "como foi", "seu dia", "conta", "piada", "engraçado",
+            "quem é você", "o que você é", "você é uma ia", "natanai"
         ]
         
         palavras_sobre_natan = [
             "quem é natan", "quem é o natan", "quem criou", "criador",
-            "desenvolvedor", "sobre natan", "sobre você"
-        ]
-        
-        palavras_sobre_natanai = [
-            "quem é você", "o que você é", "você é uma ia", "natanai"
+            "desenvolvedor", "sobre natan"
         ]
         
         palavras_precos = [
@@ -369,21 +360,13 @@ def analisar_intencao(pergunta):
         ]
         
         # CONTAGEM COM PESOS
-        for palavra in palavras_saudacao:
+        for palavra in palavras_conversa_casual:
             if palavra in p:
-                intencoes["saudacao"] += 5
-        
-        for palavra in palavras_despedida:
-            if palavra in p:
-                intencoes["despedida"] += 5
+                intencoes["geral"] += 2  # Peso baixo para não sobrepor serviços
         
         for palavra in palavras_sobre_natan:
             if palavra in p:
                 intencoes["sobre_natan"] += 6
-        
-        for palavra in palavras_sobre_natanai:
-            if palavra in p:
-                intencoes["sobre_natanai"] += 6
         
         for palavra in palavras_precos:
             if palavra in p:
@@ -447,616 +430,21 @@ def analisar_intencao(pergunta):
         return "geral"
 
 # =============================================================================
-# BASE DE CONHECIMENTO ESPECIALIZADA
-# =============================================================================
-
-def carregar_conhecimento_especializado():
-    global KNOWLEDGE_BASE
-    
-    try:
-        KNOWLEDGE_BASE = {
-            "saudacao": {
-                "resposta": """Olá! Sou a NatanAI! 🚀
-
-Assistente virtual inteligente da NatanDEV!
-
-Posso te ajudar com:
-✅ Informações sobre sites profissionais
-✅ Planos: Starter (R$ 39,99/mês) e Professional (R$ 79,99/mês)
-✅ Portfólio com 6 projetos incríveis
-✅ Contato: (21) 99282-6074
-
-Transforme sua presença digital AGORA!
-
-Em que posso ajudar você?
-
-Vibrações Positivas!"""
-            },
-            
-            "despedida": {
-                "resposta": "Até logo! Foi ótimo conversar! Vibrações Positivas! 🚀"
-            },
-            
-            "sobre_natan": {
-                "resposta": """👨‍💻 Sobre Natan Borges:
-
-**Natan Borges Alves Nascimento**
-🚀 Web Developer Full-Stack
-📍 Rio de Janeiro, Brasil
-🎯 Especialista em sites profissionais e personalizados
-
-**Destaques:**
-✅ 6+ projetos entregues
-✅ Desenvolvimento rápido (estrutura base em 3-4 horas!)
-✅ Tecnologia de ponta com IA
-✅ Atendimento em todo o Brasil
-
-**Contatos:**
-📞 WhatsApp: (21) 99282-6074
-📸 Instagram: @nborges.ofc
-🌐 Site: natansites.com.br
-💼 Portfólio: natandev02.netlify.app
-
-Seu site dos sonhos está a uma mensagem de distância!
-
-Vibrações Positivas!"""
-            },
-            
-            "sobre_natanai": {
-                "resposta": """Sou a NatanAI! 🤖
-
-Assistente virtual inteligente criada para ajudar com informações sobre os serviços de criação de sites da NatanDEV!
-
-**O que posso fazer:**
-✅ Explicar planos e preços
-✅ Mostrar portfólio de projetos
-✅ Informar contatos
-✅ Esclarecer dúvidas sobre desenvolvimento
-✅ Ajudar você a transformar sua presença digital!
-
-**Meu criador:**
-👨‍💻 Natan Borges Alves Nascimento
-🚀 Web Developer Full-Stack
-
-**Tecnologia:**
-Powered by OpenAI GPT-4o-mini com sistema anti-alucinação!
-
-Como posso ajudar você hoje?
-
-Vibrações Positivas!"""
-            },
-            
-            "precos": {
-                "resposta": """💰 Planos e Preços da NatanDEV:
-
-🌱 **PLANO STARTER** - R$ 39,99/mês
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-+ R$ 350,00 desenvolvimento inicial (pagamento único)
-
-Ideal para começar sua presença online!
-✅ Site responsivo básico
-✅ Design moderno e limpo
-✅ Otimização para mobile
-✅ Hospedagem inclusa
-✅ Suporte por WhatsApp/Email
-
-🚀 **PLANO PROFESSIONAL** - R$ 79,99/mês
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-+ R$ 530,00 desenvolvimento inicial (pagamento único)
-
-Para negócios que querem CRESCER!
-✅ Design personalizado avançado
-✅ Animações e interatividade
-✅ SEO otimizado (apareça no Google!)
-✅ Integração de APIs
-✅ Domínio personalizado
-✅ Formulários de contato
-✅ Suporte prioritário
-✅ IA Inclusa - R$ 115/mês (OPCIONAL)
-
-**💡 IMPORTANTE:** Valores de desenvolvimento inicial são pagos UMA VEZ APENAS!
-A mensalidade é só para hospedagem e manutenção contínua!
-
-Seu negócio merece brilhar na web!
-
-📞 WhatsApp: (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "planos": {
-                "resposta": """📋 Detalhes dos Planos:
-
-🌱 **STARTER** (R$ 39,99/mês + R$ 350 inicial)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Perfeito para: pequenos negócios, profissionais autônomos, cartões de visita digitais
-
-Inclui:
-✅ Site responsivo básico
-✅ Design moderno
-✅ Hospedagem
-✅ Suporte básico
-
-🚀 **PROFESSIONAL** (R$ 79,99/mês + R$ 530 inicial)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Perfeito para: empresas, e-commerce, projetos complexos
-
-Inclui:
-✅ Design personalizado avançado
-✅ Animações e interatividade
-✅ SEO otimizado
-✅ Integrações de APIs
-✅ Domínio personalizado
-✅ Suporte prioritário
-✅ + IA opcional (R$ 115/mês)
-
-**Diferencial:** Desenvolvimento RÁPIDO (estrutura base em 3-4 horas!)
-
-Qual plano se encaixa melhor para você?
-
-📞 Vamos conversar: (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "contato": {
-                "resposta": """📞 Contatos da NatanDEV:
-
-**Natan Borges Alves Nascimento**
-🚀 Web Developer Full-Stack
-
-📱 WhatsApp: **(21) 99282-6074** ← Chama aqui!
-📸 Instagram: **@nborges.ofc**
-📧 Email: **borgesnatan09@gmail.com**
-🌐 Site: **natansites.com.br**
-💼 Portfólio: **natandev02.netlify.app**
-
-**Redes Sociais:**
-🔗 GitHub: github.com/natsongamesoficial551
-🔗 LinkedIn: linkedin.com/in/natan-borges-b3a3b5382/
-🔗 Facebook: facebook.com/profile.php?id=100076973940954
-
-📍 **Localização:** Rio de Janeiro, Brasil
-🌎 **Atendimento:** Todo o Brasil (remoto)
-
-**Resposta rápida garantida!**
-
-Manda um "Oi" no WhatsApp e vamos começar seu projeto!
-
-Vibrações Positivas!"""
-            },
-            
-            "portfolio": {
-                "resposta": """💼 Portfólio NatanDEV - 6 Projetos Incríveis:
-
-01. 🏠 **Espaço Familiares**
-    espacofamiliares.com.br
-    Site para eventos especiais (casamentos, festas, dayuse)
-
-02. 🎮 **DeluxModPack GTAV**
-    deluxgtav.netlify.app
-    Modpack para GTA V desenvolvido em C# (versão BETA)
-
-03. 📝 **Quiz Venezuela**
-    quizvenezuela.onrender.com
-    Quiz educacional interativo
-
-04. 🌐 **WebServiço**
-    webservico.netlify.app
-    Página de apresentação de serviços
-
-05. 📚 **MathWork**
-    mathworkftv.netlify.app
-    Plataforma educacional de matemática com 10 alunos
-
-06. 🧘 **Alessandra Yoga**
-    alessandrayoga.netlify.app
-    Cartão de visita digital profissional
-
-**Veja todos os projetos e certificados:**
-🌐 natandev02.netlify.app
-
-Sites que convertem visitantes em clientes apaixonados!
-
-Quer um site tão incrível quanto esses?
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "criar_site": {
-                "resposta": """🚀 Quer criar seu site? Perfeito!
-
-**Processo simples em 4 passos:**
-
-1️⃣ **Contato inicial**
-   📞 WhatsApp: (21) 99282-6074
-   Me conte sobre seu negócio e objetivos!
-
-2️⃣ **Escolha do plano**
-   🌱 Starter: R$ 39,99/mês + R$ 350 inicial
-   🚀 Professional: R$ 79,99/mês + R$ 530 inicial
-
-3️⃣ **Desenvolvimento**
-   ⚡ Estrutura base: 3-4 horas
-   🎨 Projeto completo: 1-2 semanas
-
-4️⃣ **Entrega e ajustes**
-   ✅ Revisão detalhada
-   ✅ Correções incluídas
-   ✅ Site no ar!
-
-**Diferenciais:**
-✨ Desenvolvimento rápido
-✨ Tecnologia de ponta com IA
-✨ 100% responsivo
-✨ Design moderno
-
-Do zero ao WOW em tempo recorde!
-
-📞 Chama no WhatsApp: (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "tipos_sites": {
-                "resposta": """🎨 Tipos de Sites que a NatanDEV cria:
-
-🏢 **Sites Comerciais**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sites institucionais e corporativos que elevam sua presença digital!
-✨ Design moderno
-✨ Apresentação de serviços
-✨ Depoimentos de clientes
-✨ Galeria de produtos
-✨ Formulários de contato
-📍 Perfeito para: empresas, consultórios, escritórios, lojas
-
-✨ **Sites Interativos**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Experiências digitais envolventes!
-✨ Animações sofisticadas
-✨ Elementos 3D
-✨ Quizzes personalizados
-✨ Calculadoras interativas
-✨ Jogos educativos
-📍 Ideal para: marcas que querem impressionar, projetos educacionais
-
-🎨 **Sites Personalizados**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Projetos exclusivos EXATAMENTE como você imaginou!
-✨ Design totalmente customizado
-✨ Funcionalidades específicas
-✨ Integrações com sistemas
-✨ Painéis administrativos
-📍 Desde landing pages até plataformas complexas!
-
-Criamos experiências, não apenas sites!
-
-📞 Vamos conversar: (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "tempo_desenvolvimento": {
-                "resposta": """⏱️ Tempo de Desenvolvimento:
-
-**Velocidade é nosso diferencial!**
-
-⚡ **Estrutura Base:** 3-4 horas
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Começamos do zero e rapidamente temos:
-✅ Layout funcional
-✅ Estrutura responsiva
-✅ Design inicial
-
-🎨 **Projeto Completo:** 1-2 semanas
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tempo pode variar conforme complexidade:
-• Sites simples: 1 semana
-• Sites complexos: 2 semanas
-• Projetos especiais: sob consulta
-
-**O que influencia o prazo:**
-📝 Quantidade de páginas
-🎨 Complexidade do design
-🔧 Funcionalidades específicas
-📸 Fornecimento de conteúdo
-
-**Diferencial:** Começamos rápido e entregamos com qualidade!
-
-Do zero ao WOW em tempo recorde!
-
-📞 Vamos agilizar seu projeto: (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "como_funciona": {
-                "resposta": """📋 Como Funciona o Processo:
-
-**Passo a passo completo:**
-
-1️⃣ **Primeiro Contato**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 WhatsApp: (21) 99282-6074
-Conte sobre seu negócio, objetivos e necessidades
-
-2️⃣ **Planejamento**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 Escolha do plano (Starter ou Professional)
-🎯 Definição de funcionalidades
-📝 Alinhamento de expectativas
-
-3️⃣ **Desenvolvimento**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ Estrutura base: 3-4 horas
-🎨 Design e personalização
-🔧 Funcionalidades específicas
-📱 Otimização responsiva
-
-4️⃣ **Revisão**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Testes de qualidade
-🐛 Correção de bugs
-📊 Validação final
-
-5️⃣ **Entrega**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 Site no ar!
-📚 Suporte inicial
-🎓 Orientações de uso
-
-**Transparência total em cada etapa!**
-
-Pronto para começar?
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "tecnologias": {
-                "resposta": """💻 Tecnologias e Ferramentas:
-
-**Stack Moderno e Profissional:**
-
-🎨 **Front-end:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ HTML5, CSS3, JavaScript
-✅ Frameworks modernos
-✅ Animações suaves
-✅ Design responsivo
-
-🤖 **Inteligência Artificial:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Uso estratégico de IA para criação visual
-✅ Otimização de código com IA
-✅ Assistentes virtuais personalizados (opcional)
-
-⚙️ **Back-end:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ APIs modernas
-✅ Integração com sistemas
-✅ Banco de dados quando necessário
-
-🔍 **SEO e Performance:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Otimização para Google
-✅ Performance otimizada
-✅ Carregamento rápido
-
-📱 **100% Responsivo:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Mobile-first
-✅ Funciona em tablets
-✅ Desktop otimizado
-
-Tecnologia de ponta ao seu alcance!
-
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "responsivo": {
-                "resposta": """📱 Sites 100% Responsivos!
-
-**Funciona perfeitamente em TODOS os dispositivos:**
-
-📱 **Mobile (Celular):**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Design adaptado para telas pequenas
-✅ Navegação otimizada para toque
-✅ Carregamento rápido
-✅ Menu mobile-friendly
-
-📲 **Tablet:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Layout intermediário perfeito
-✅ Aproveitamento ideal da tela
-✅ Experiência fluida
-
-💻 **Desktop:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Design completo e expansivo
-✅ Todos os recursos disponíveis
-✅ Performance otimizada
-
-**Por que é importante:**
-• 70%+ dos usuários acessam pelo celular
-• Google prioriza sites responsivos
-• Melhor experiência = mais conversões
-
-**Mobile-first:** Pensamos primeiro no celular, depois adaptamos!
-
-Qualidade profissional sem quebrar o banco!
-
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "seo": {
-                "resposta": """🔍 SEO - Apareça no Google!
-
-**Disponível no Plano Professional**
-
-🎯 **O que é SEO:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Otimização para mecanismos de busca
-= Seu site aparece nas pesquisas do Google!
-
-✅ **O que fazemos:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Otimização de títulos e descrições
-✅ URLs amigáveis
-✅ Meta tags corretas
-✅ Conteúdo estruturado
-✅ Performance otimizada (Google adora sites rápidos!)
-✅ Responsividade (obrigatório para SEO)
-
-📈 **Resultados:**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Maior visibilidade online
-• Mais tráfego orgânico
-• Clientes encontram você facilmente
-• Destaque da concorrência
-
-**Importante:** SEO é trabalho contínuo, mas começamos forte!
-
-🚀 **Plano Professional:** R$ 79,99/mês + R$ 530 inicial
-
-Destaque-se da concorrência com um site IMPECÁVEL!
-
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "diferenciais": {
-                "resposta": """⭐ Diferenciais da NatanDEV:
-
-**Por que escolher a NatanDEV:**
-
-⚡ **Desenvolvimento RÁPIDO**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Estrutura base em apenas 3-4 horas!
-Do zero ao WOW em tempo recorde!
-
-🤖 **Tecnologia de Ponta com IA**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Uso estratégico de IA para criar visual EXATAMENTE como você deseja
-Expertise humana + poder da IA = qualidade máxima!
-
-✅ **Qualidade Garantida**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Revisão detalhada do código
-Correção de erros incluída
-Performance e segurança impecável
-
-📱 **100% Responsivo**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Funciona perfeitamente em mobile, tablet e desktop!
-
-🎨 **Design Moderno**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Layouts profissionais com animações suaves
-Gradientes modernos e UX de alto nível
-
-💰 **Preço Justo**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Qualidade profissional sem quebrar o banco!
-Planos acessíveis para todos
-
-🤝 **Atendimento Personalizado**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Suporte direto com o desenvolvedor
-WhatsApp, Instagram, Email
-
-Sites que convertem visitantes em clientes apaixonados!
-
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            },
-            
-            "projetos_especificos": {
-                "resposta": """💼 Projetos em Destaque:
-
-**Conheça os cases de sucesso:**
-
-🏠 **Espaço Familiares**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 espacofamiliares.com.br
-Site completo para eventos especiais
-Design elegante, responsivo e moderno
-
-📚 **MathWork**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 mathworkftv.netlify.app
-Plataforma educacional de matemática
-10 alunos, vídeos explicativos, interface didática
-
-🧘 **Alessandra Yoga**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 alessandrayoga.netlify.app
-Cartão de visita digital profissional
-Design minimalista e elegante
-
-🎮 **DeluxModPack GTAV**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 deluxgtav.netlify.app
-Modpack para GTA V (desenvolvido em C#)
-Versão BETA com recursos avançados
-
-📝 **Quiz Venezuela**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 quizvenezuela.onrender.com
-Quiz educacional interativo
-Um dos primeiros projetos!
-
-🌐 **WebServiço**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 webservico.netlify.app
-Página de apresentação de serviços
-
-**Veja TODOS os projetos e certificados:**
-💼 natandev02.netlify.app
-
-Quer um site tão incrível quanto esses?
-📞 (21) 99282-6074
-
-Vibrações Positivas!"""
-            }
-        }
-        
-        print(f"✅ Base carregada: {len(KNOWLEDGE_BASE)} categorias")
-        
-    except Exception as e:
-        print(f"❌ Erro ao carregar base: {e}")
-        KNOWLEDGE_BASE = {}
-
-# =============================================================================
 # BUSCA NA BASE ESPECIALIZADA
 # =============================================================================
 
 def buscar_resposta_especializada(pergunta):
-    """Busca resposta na base de conhecimento especializada"""
+    """Apenas analisa a intenção - não retorna respostas prontas"""
     try:
         intencao = analisar_intencao(pergunta)
-        
-        if intencao in KNOWLEDGE_BASE:
-            resposta = KNOWLEDGE_BASE[intencao]["resposta"]
-            print(f"✅ Resposta base especializada: {intencao}")
-            return resposta, intencao
-        
+        # Agora só retorna a intenção, sem respostas prontas
         return None, intencao
         
     except Exception as e:
-        print(f"❌ Erro busca especializada: {e}")
+        print(f"❌ Erro análise intenção: {e}")
         return None, "geral"
-
-# =============================================================================
+    
+    # =============================================================================
 # PROCESSAMENTO HÍBRIDO COM OPENAI + ANTI-ALUCINAÇÃO
 # =============================================================================
 
@@ -1066,7 +454,7 @@ def verificar_openai():
         if not OPENAI_API_KEY or len(OPENAI_API_KEY) < 20:
             return False
         
-        if client is None:  # NOVA VERIFICAÇÃO
+        if client is None:
             return False
         
         response = client.chat.completions.create(
@@ -1083,7 +471,6 @@ def processar_openai_hibrido(pergunta, intencao):
     """
     Processa com OpenAI em modo HÍBRIDO com anti-alucinação
     """
-    # NOVA VERIFICAÇÃO ✅
     if client is None:
         return None
     
@@ -1092,66 +479,177 @@ def processar_openai_hibrido(pergunta, intencao):
     
     try:
         # Monta prompt RESTRITIVO com informações oficiais
-        prompt_sistema = f"""Você é NatanAI, assistente virtual inteligente da NatanDEV!
+        prompt_sistema = f"""Você é o NatanAI, assistente virtual inteligente, masculino, amigável e empático da NatanDEV!
 
-INFORMAÇÕES OFICIAIS (use quando relevante):
+═══════════════════════════════════════════════════════════════════
+INFORMAÇÕES OFICIAIS DO NATANDEV (USE QUANDO RELEVANTE)
+═══════════════════════════════════════════════════════════════════
 
-**CRIADOR:**
-Nome: Natan Borges Alves Nascimento
-Profissão: Web Developer Full-Stack
-Localização: Rio de Janeiro, Brasil
+👨‍💻 **SOBRE O CRIADOR (NATAN - O DESENVOLVEDOR):**
+- Nome: Natan Borges Alves Nascimento
+- Profissão: Web Developer Full-Stack
+- Localização: Rio de Janeiro, Brasil
+- Atendimento: Todo o Brasil (remoto)
+- **IMPORTANTE: Natan é quem DESENVOLVE os sites. Você (NatanAI) é apenas a assistente virtual dele.**
 
-**CONTATOS:**
-WhatsApp: (21) 99282-6074
-Instagram: @nborges.ofc
-Email: borgesnatan09@gmail.com
-Site: natansites.com.br
-Portfólio: natandev02.netlify.app
+🤖 **SOBRE VOCÊ (NATANAI):**
+- Você é a NatanAI, criada POR Natan para ser a assistente virtual dele
+- Você NÃO desenvolve sites - você apenas auxilia clientes e responde perguntas
+- Sempre fale "o Natan desenvolve", "o Natan cria", "ele pode fazer"
+- NUNCA diga "eu desenvolvo", "eu crio" ou "nós fazemos" - você é apenas a assistente!
 
-**PLANOS:**
-Starter: R$ 39,99/mês + R$ 350,00 inicial (pagamento único)
-Professional: R$ 79,99/mês + R$ 530,00 inicial (pagamento único)
-IA opcional no Professional: +R$ 115,00/mês
+📞 **CONTATOS OFICIAIS:**
+- WhatsApp: (21) 99282-6074 ← PRINCIPAL
+- Instagram: @nborges.ofc
+- Email: borgesnatan09@gmail.com
+- Site: natansites.com.br
+- Portfólio: natandev02.netlify.app
+- GitHub: github.com/natsongamesoficial551
+- LinkedIn: linkedin.com/in/natan-borges-b3a3b5382/
+- Facebook: facebook.com/profile.php?id=100076973940954
 
-**PROJETOS:**
-1. Espaço Familiares (espacofamiliares.com.br)
-2. MathWork (mathworkftv.netlify.app)
-3. Alessandra Yoga (alessandrayoga.netlify.app)
-4. DeluxModPack GTAV (deluxgtav.netlify.app)
-5. Quiz Venezuela (quizvenezuela.onrender.com)
-6. WebServiço (webservico.netlify.app)
+💰 **PLANOS E PREÇOS:**
 
-**DIFERENCIAIS:**
-- Desenvolvimento rápido (estrutura base em 3-4 horas)
+🌱 PLANO STARTER - R$ 39,99/mês
+   + R$ 350,00 desenvolvimento inicial (pagamento ÚNICO)
+   
+   Inclui:
+   ✅ Site responsivo básico
+   ✅ Design moderno e limpo
+   ✅ Otimização para mobile
+   ✅ Hospedagem inclusa
+   ✅ Suporte por WhatsApp/Email
+   
+   Ideal para: pequenos negócios, profissionais autônomos, cartões de visita digitais
+
+🚀 PLANO PROFESSIONAL - R$ 79,99/mês
+   + R$ 530,00 desenvolvimento inicial (pagamento ÚNICO)
+   
+   Inclui:
+   ✅ Design personalizado avançado
+   ✅ Animações e interatividade
+   ✅ SEO otimizado (apareça no Google!)
+   ✅ Integração de APIs
+   ✅ Domínio personalizado
+   ✅ Formulários de contato
+   ✅ Suporte prioritário
+   
+   OPCIONAL: IA Integrada, opcional, precisa organizar preços com o Natan
+
+💡 IMPORTANTE: Valores de desenvolvimento inicial são pagos UMA VEZ! A mensalidade é só para hospedagem e manutenção.
+
+💼 **PORTFÓLIO (6 PROJETOS DESENVOLVIDOS PELO NATAN):**
+
+1. 🏠 Espaço Familiares (espacofamiliares.com.br)
+   → Site para eventos especiais (casamentos, festas, dayuse)
+
+2. 📚 MathWork (mathworkftv.netlify.app)
+   → Plataforma educacional de matemática com 10 alunos
+
+3. 🧘 Alessandra Yoga (alessandrayoga.netlify.app)
+   → Cartão de visita digital profissional
+
+4. 🎮 DeluxModPack GTAV (deluxgtav.netlify.app)
+   → Modpack para GTA V desenvolvido em C# (BETA)
+
+5. 📝 Quiz Venezuela (quizvenezuela.onrender.com)
+   → Quiz educacional interativo
+
+6. 🌐 WebServiço (webservico.netlify.app)
+   → Página de apresentação de serviços
+
+Portfólio completo: natandev02.netlify.app
+
+🎨 **TIPOS DE SITES QUE O NATAN DESENVOLVE:**
+- Sites Comerciais (empresas, consultórios, escritórios, lojas)
+- Sites Interativos (animações, 3D, quizzes, calculadoras, jogos educativos)
+- Sites Personalizados (funcionalidades exclusivas sob medida)
+
+⏱️ **TEMPO DE DESENVOLVIMENTO DO NATAN:**
+- Estrutura base: 3-4 horas (super rápido!)
+- Projeto completo simples: 1 semana
+- Projeto completo complexo: 2 semanas
+- Projetos especiais: sob consulta
+
+📋 **PROCESSO (4 PASSOS):**
+1. Contato inicial via WhatsApp: (21) 99282-6074
+2. Escolha do plano e planejamento com o Natan
+3. Desenvolvimento pelo Natan (estrutura base em 3-4h!)
+4. Revisão, ajustes e entrega
+
+💻 **TECNOLOGIAS QUE O NATAN USA:**
+- Front-end: HTML5, CSS3, JavaScript, frameworks modernos
+- IA: Uso estratégico para criação visual e otimização
+- Back-end: APIs modernas, integração com sistemas
+- SEO: Otimização para Google (no plano Professional)
+- 100% Responsivo: Mobile, tablet e desktop
+
+⭐ **DIFERENCIAIS DO NATAN:**
+- Desenvolvimento RÁPIDO (estrutura base em 3-4 horas!)
 - Tecnologia de ponta com IA
-- 100% responsivo
-- Design moderno
+- Qualidade garantida com revisão de código
+- 100% responsivo (mobile-first)
+- Design moderno com animações
+- Preço justo e acessível
+- Atendimento personalizado direto com o desenvolvedor
 
-**TEMPO DESENVOLVIMENTO:**
-Estrutura base: 3-4 horas
-Projeto completo: 1-2 semanas
+═══════════════════════════════════════════════════════════════════
+REGRAS DE COMPORTAMENTO
+═══════════════════════════════════════════════════════════════════
 
-REGRAS CRÍTICAS:
-1. NUNCA invente informações sobre serviços
-2. NUNCA mencione preços diferentes dos oficiais
-3. NUNCA diga que oferecemos serviços não listados
-4. NUNCA invente projetos ou clientes
-5. Use APENAS as informações oficiais acima
-6. Se não souber, direcione para contato: (21) 99282-6074
+🎯 **CONVERSAS CASUAIS:**
+- Se a pessoa falar sobre o dia, fazer piada, bater papo → Responda NATURALMENTE como um amigo!
+- Seja empático, descontraído, humano e acolhedor
+- Use tom leve e amigável
+- NÃO force informações sobre serviços em conversas casuais
 
-PARA OUTRAS PERGUNTAS NÃO RELACIONADAS AOS SERVIÇOS:
-- Responda de forma útil e educada
-- Seja simples e direta
-- Depois, mencione brevemente que sua especialidade é sobre serviços de sites
+💼 **PERGUNTAS SOBRE SERVIÇOS:**
+- Quando perguntarem sobre preços, sites, portfólio, contato → Use as informações oficiais acima
+- **SEMPRE DEIXE CLARO QUE O NATAN É QUEM DESENVOLVE, NÃO VOCÊ!**
+- Use frases como: "O Natan desenvolve...", "Ele pode criar...", "O trabalho dele inclui..."
+- Seja claro, direto e entusiasmado
+- Destaque os diferenciais quando relevante
+- Sempre mencione o WhatsApp: (21) 99282-6074
 
-PERSONALIDADE:
-- Entusiasta e empolgante
-- Use frases impactantes ocasionalmente
-- Termine 30% das respostas com "Vibrações Positivas!"
-- Máximo 200 palavras
-- Use 2-4 emojis no máximo
+🔗 **TRANSIÇÃO NATURAL:**
+- Após responder algo casual, você PODE mencionar brevemente (1 linha) que também ajuda com sites
+- Exemplo: "Aliás, se precisar de um site profissional, o Natan pode ajudar! Sou a assistente dele 😊"
+- Mas APENAS se fizer sentido no contexto
 
-FOCO ATUAL: {intencao.upper() if intencao != 'geral' else 'Responda de forma útil'}
+❌ **PROIBIDO:**
+- NUNCA diga "eu desenvolvo", "eu crio", "eu faço" quando falar de desenvolvimento
+- NUNCA invente preços diferentes dos oficiais
+- NUNCA invente projetos, clientes ou cases não listados
+- NUNCA diga que o serviço é gratuito
+- NUNCA prometa "primeiro lugar no Google garantido"
+- NUNCA invente anos de experiência ou prêmios
+- NUNCA mencione serviços não oferecidos (apps mobile nativos, blockchain, etc)
+
+✅ **SE NÃO SOUBER:**
+- Para dúvidas sobre serviços que não estão nas informações acima
+- Direcione para contato direto: "Melhor chamar o Natan no WhatsApp: (21) 99282-6074 para tirar essa dúvida!"
+
+🎨 **PERSONALIDADE:**
+- Amigável, empática e natural
+- Entusiasta quando falar dos serviços DO NATAN
+- Use emojis com moderação (2-4 por resposta)
+- Seja conciso para conversas casuais (máximo 100 palavras)
+- Para perguntas sobre serviços, pode ser mais detalhado (até 250 palavras)
+- Use "Vibrações Positivas!" ocasionalmente (30% das respostas, quando fizer sentido)
+
+📊 **FORMATAÇÃO:**
+- Conversas casuais: Texto corrido, natural, sem listas
+- Perguntas sobre serviços: Pode usar emojis, listas e formatação para clareza
+- Sempre organize bem as informações
+- **SEMPRE deixe claro que o Natan é o desenvolvedor, não você!**
+
+═══════════════════════════════════════════════════════════════════
+
+**CONTEXTO DA CONVERSA ATUAL:** {intencao}
+
+Responda de forma adequada ao contexto: casual e empática para conversa, ou detalhada e entusiasmada para serviços!
+
+**LEMBRE-SE: Você é a ASSISTENTE do Natan. ELE desenvolve os sites, NÃO VOCÊ!**
 """
 
         prompt_usuario = f"Responda de forma direta e empolgante: {pergunta}"
@@ -1164,8 +662,8 @@ FOCO ATUAL: {intencao.upper() if intencao != 'geral' else 'Responda de forma út
                 {"role": "user", "content": prompt_usuario}
             ],
             max_tokens=300,
-            temperature=0.4,
-            top_p=0.85,
+            temperature=0.7,
+            top_p=0.9,
             presence_penalty=0.1,
             frequency_penalty=0.1
         )
@@ -1185,7 +683,6 @@ FOCO ATUAL: {intencao.upper() if intencao != 'geral' else 'Responda de forma út
                 return None
         
         # Garante que tem "Vibrações Positivas!" em algumas respostas
-        import random
         if random.random() < 0.3 and "vibrações positivas" not in resposta_openai.lower():
             resposta_openai += "\n\nVibrações Positivas!"
         
@@ -1202,10 +699,7 @@ FOCO ATUAL: {intencao.upper() if intencao != 'geral' else 'Responda de forma út
 
 def gerar_resposta_hibrida_otimizada(pergunta):
     """
-    Sistema HÍBRIDO:
-    1. Tenta base especializada (100% confiável)
-    2. Se não encontrar, usa OpenAI com validação anti-alucinação
-    3. Se falhar, usa fallback confiável
+    Sistema 100% OpenAI com validação anti-alucinação
     """
     try:
         # Cache
@@ -1213,37 +707,25 @@ def gerar_resposta_hibrida_otimizada(pergunta):
         if pergunta_hash in CACHE_RESPOSTAS:
             return CACHE_RESPOSTAS[pergunta_hash], "cache"
         
-        # 1. PRIORIDADE: Base especializada (0% alucinação)
-        resposta_base, intencao = buscar_resposta_especializada(pergunta)
-        if resposta_base:
-            CACHE_RESPOSTAS[pergunta_hash] = resposta_base
-            return resposta_base, f"base_especializada_{intencao}"
+        # Analisa intenção
+        _, intencao = buscar_resposta_especializada(pergunta)
         
-        # 2. BACKUP: OpenAI com validação anti-alucinação
+        # USA OPENAI PARA TUDO (com as informações oficiais no prompt)
         resposta_openai = processar_openai_hibrido(pergunta, intencao)
         if resposta_openai:
             CACHE_RESPOSTAS[pergunta_hash] = resposta_openai
-            return resposta_openai, f"openai_hibrido_{intencao}"
+            return resposta_openai, f"openai_dinamico_{intencao}"
         
-        # 3. FALLBACK: Resposta confiável da base
-        fallbacks_confiaveis = {
-            "precos": "💰 Planos:\n\n🌱 Starter: R$ 39,99/mês + R$ 350 inicial\n🚀 Professional: R$ 79,99/mês + R$ 530 inicial\n\n📞 (21) 99282-6074\n\nVibrações Positivas!",
-            "contato": "📞 Contatos:\n\nWhatsApp: (21) 99282-6074\nInstagram: @nborges.ofc\nSite: natansites.com.br\nPortfólio: natandev02.netlify.app\n\nVibrações Positivas!",
-            "portfolio": "💼 Portfólio com 6 projetos:\n\n• Espaço Familiares\n• MathWork\n• Alessandra Yoga\n• DeluxModPack GTAV\n• Quiz Venezuela\n• WebServiço\n\nVeja todos: natandev02.netlify.app\n\n📞 (21) 99282-6074",
-            "criar_site": "🚀 Vamos criar seu site!\n\nChame no WhatsApp: (21) 99282-6074\n\nPlanos a partir de R$ 39,99/mês!\n\nVibrações Positivas!",
-            "sobre_natan": "👨‍💻 Natan Borges Alves Nascimento\nWeb Developer Full-Stack do Rio de Janeiro\n\nVeja projetos: natandev02.netlify.app\n📞 (21) 99282-6074",
-            "geral": "Sou a NatanAI! 🚀\n\nCrio sites profissionais e modernos!\n\nPlanos: R$ 39,99/mês ou R$ 79,99/mês\n📞 (21) 99282-6074\n\nVibrações Positivas!"
-        }
+        # FALLBACK apenas se OpenAI falhar
+        fallback = f"Desculpa, estou com dificuldades técnicas agora. 😅\n\nChama no WhatsApp para te ajudar: (21) 99282-6074\n\nVibrações Positivas!"
         
-        resposta_fallback = fallbacks_confiaveis.get(intencao, fallbacks_confiaveis["geral"])
-        CACHE_RESPOSTAS[pergunta_hash] = resposta_fallback
-        return resposta_fallback, f"fallback_{intencao}"
+        return fallback, "fallback_emergency"
         
     except Exception as e:
         print(f"❌ Erro geral: {e}")
         return "Para informações, fale com Natan: (21) 99282-6074\n\nVibrações Positivas!", "erro_emergency"
-
-# =============================================================================
+    
+    # =============================================================================
 # ROTAS DA API
 # =============================================================================
 
@@ -1253,12 +735,11 @@ def health():
     try:
         return jsonify({
             "status": "online",
-            "sistema": "NatanAI v4.0 HÍBRIDA",
-            "modo": "OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação",
+            "sistema": "NatanAI v4.0 HÍBRIDA NATURAL",
+            "modo": "OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação + Conversação Natural",
             "modelo": OPENAI_MODEL,
             "openai_ativo": verificar_openai(),
             "cache_size": len(CACHE_RESPOSTAS),
-            "base_conhecimento": len(KNOWLEDGE_BASE),
             "info_servicos": {
                 "criador": INFORMACOES_OFICIAIS["criador"],
                 "whatsapp": INFORMACOES_OFICIAIS["whatsapp"],
@@ -1273,12 +754,13 @@ def health():
                 "limpeza_automatica": True
             },
             "funcionalidades": [
-                "Base especializada 100% confiável",
-                "OpenAI com validação anti-alucinação",
+                "100% OpenAI - respostas dinâmicas e inteligentes",
+                "Informações oficiais embutidas no prompt",
                 "Detecção de informações inventadas",
                 "Limpeza automática de alucinações",
-                "Fallback sempre confiável",
-                "Cache inteligente"
+                "Fallback de emergência",
+                "Cache inteligente",
+                "Conversação natural e empática"
             ]
         })
     except Exception as e:
@@ -1329,7 +811,7 @@ def chat_hibrido():
             "resposta": resposta,  # Compatibilidade
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v4.0 Híbrida",
+                "sistema": "NatanAI v4.0 Híbrida Natural",
                 "modelo": OPENAI_MODEL if "openai" in fonte else "Base Especializada",
                 "validacao_anti_alucinacao": valida,
                 "modo_hibrido": True,
@@ -1353,14 +835,14 @@ def info():
     """Retorna informações sobre a NatanAI"""
     return jsonify({
         "nome": "NatanAI",
-        "versao": "4.0 - Híbrida (OpenAI + Base Especializada)",
+        "versao": "4.0 - Híbrida Natural (OpenAI + Base Especializada + Conversação)",
         "criador": INFORMACOES_OFICIAIS["criador"],
         "profissao": INFORMACOES_OFICIAIS["profissao"],
         "modelo": {
             "nome": OPENAI_MODEL,
             "tipo": "OpenAI GPT-4o-mini",
             "status": "🟢 Online" if verificar_openai() else "🔴 Offline",
-            "modo": "Híbrido com anti-alucinação"
+            "modo": "Híbrido com anti-alucinação e conversação natural"
         },
         "contato": {
             "whatsapp": INFORMACOES_OFICIAIS["whatsapp"],
@@ -1404,8 +886,8 @@ def estatisticas():
                 "total_problemas_detectados": total_problemas,
                 "media_problemas": round(total_problemas / len(HISTORICO_CONVERSAS), 2)
             },
-            "sistema": "NatanAI v4.0 Híbrida",
-            "modo": "OpenAI + Base Especializada + Anti-Alucinação"
+            "sistema": "NatanAI v4.0 Híbrida Natural",
+            "modo": "OpenAI + Base Especializada + Anti-Alucinação + Conversação"
         })
         
     except Exception as e:
@@ -1430,10 +912,13 @@ def exemplos():
             "Qual a diferença entre Starter e Professional?",
             "Como funciona o processo?",
             "Faz site com SEO?",
-            "Atende em qual cidade?"
+            "Atende em qual cidade?",
+            "Oi, tudo bem?",
+            "Como foi seu dia?",
+            "Conta uma piada"
         ],
-        "dica": "A NatanAI conhece TUDO sobre os serviços da NatanDEV! Pergunte qualquer coisa! 🚀",
-        "modelo": f"Usando OpenAI {OPENAI_MODEL} com sistema anti-alucinação"
+        "dica": "A NatanAI conversa naturalmente E conhece tudo sobre os serviços da NatanDEV! Pergunte qualquer coisa! 🚀",
+        "modelo": f"Usando OpenAI {OPENAI_MODEL} com sistema anti-alucinação e conversação natural"
     })
 
 @app.route('/ping', methods=['GET'])
@@ -1441,7 +926,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "sistema": "NatanAI v4.0 Híbrida"
+        "sistema": "NatanAI v4.0 Híbrida Natural"
     })
 
 @app.route('/', methods=['GET'])
@@ -1450,7 +935,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v4.0 - Híbrida</title>
+        <title>NatanAI v4.0 - Híbrida Natural</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -1491,6 +976,7 @@ def home():
             .badge-hybrid { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
             .badge-ai { background: #4CAF50; color: white; }
             .badge-safe { background: #2196F3; color: white; }
+            .badge-natural { background: #FF6B6B; color: white; }
             
             .info-box {
                 background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
@@ -1642,22 +1128,23 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🤖 NatanAI v4.0 - HÍBRIDA</h1>
+                <h1>🤖 NatanAI v4.0 - HÍBRIDA NATURAL</h1>
                 <p style="color: #666; margin: 10px 0;">Assistente Inteligente da NatanDEV</p>
                 <div>
                     <span class="badge badge-hybrid">MODO HÍBRIDO</span>
                     <span class="badge badge-ai">OpenAI GPT-4o-mini</span>
                     <span class="badge badge-safe">Anti-Alucinação</span>
+                    <span class="badge badge-natural">Conversação Natural</span>
                 </div>
             </div>
             
             <div class="info-box">
-                <h3>🎯 Sistema Híbrido Inteligente</h3>
+                <h3>🎯 Sistema Híbrido Natural</h3>
                 <ul>
+                    <li><strong>Conversação Natural:</strong> Responde perguntas casuais de forma empática e humana</li>
                     <li><strong>Base Especializada:</strong> Respostas 100% confiáveis sobre serviços</li>
-                    <li><strong>OpenAI GPT-4o-mini:</strong> Inteligência avançada para perguntas complexas</li>
+                    <li><strong>OpenAI GPT-4o-mini:</strong> Inteligência avançada para qualquer pergunta</li>
                     <li><strong>Validação Anti-Alucinação:</strong> Verifica e corrige informações inventadas</li>
-                    <li><strong>Fallback Inteligente:</strong> Sempre direciona para Natan quando necessário</li>
                 </ul>
             </div>
             
@@ -1675,38 +1162,38 @@ def home():
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot bot-hybrid">
-                    <strong>🤖 NatanAI v4.0 Híbrida:</strong><br><br>
-                    Olá! Sou a NatanAI em versão híbrida! 🚀<br><br>
+                    <strong>🤖 NatanAI v4.0 Natural:</strong><br><br>
+                    Oi! Sou a NatanAI! 😊<br><br>
                     
-                    <strong>Como funciono:</strong><br>
-                    ✅ Uso base especializada para respostas rápidas e confiáveis<br>
-                    ✅ Uso OpenAI GPT-4o-mini para perguntas mais complexas<br>
-                    ✅ Valido todas as respostas para evitar informações incorretas<br>
-                    ✅ Se não souber, direciono para Natan!<br><br>
+                    <strong>Posso conversar sobre qualquer coisa:</strong><br>
+                    💬 Bater papo casual<br>
+                    💰 Informações sobre sites e serviços<br>
+                    📞 Contatos e portfólio<br>
+                    🚀 Processos de desenvolvimento<br><br>
                     
-                    <strong>Pergunte sobre:</strong> preços, planos, portfólio, tempo de desenvolvimento, contatos!<br><br>
+                    Seja você mesmo! Pergunta o que quiser! 💜<br><br>
                     
-                    <strong>Vibrações Positivas!</strong> 💚
+                    <strong>Vibrações Positivas!</strong>
                 </div>
             </div>
             
             <div class="examples">
+                <button class="example-btn" onclick="testar('Oi, tudo bem?')">👋 Saudação</button>
                 <button class="example-btn" onclick="testar('Quanto custa um site?')">💰 Preços</button>
                 <button class="example-btn" onclick="testar('Quero criar um site')">🚀 Criar Site</button>
+                <button class="example-btn" onclick="testar('Como foi seu dia?')">💬 Casual</button>
                 <button class="example-btn" onclick="testar('Qual o portfólio?')">💼 Portfólio</button>
-                <button class="example-btn" onclick="testar('Quanto tempo demora?')">⏱️ Prazo</button>
-                <button class="example-btn" onclick="testar('Como entro em contato?')">📞 Contato</button>
-                <button class="example-btn" onclick="testar('Quem é o Natan?')">👨‍💻 Sobre</button>
+                <button class="example-btn" onclick="testar('Conta uma piada')">😄 Piada</button>
             </div>
             
             <div class="input-area">
-                <input type="text" id="msg" placeholder="Digite sua pergunta..." onkeypress="if(event.key==='Enter') enviar()">
+                <input type="text" id="msg" placeholder="Digite sua pergunta ou só bata um papo..." onkeypress="if(event.key==='Enter') enviar()">
                 <button onclick="enviar()">Enviar</button>
             </div>
             
             <div class="footer">
-                <p><strong>NatanAI v4.0 - Sistema Híbrido</strong></p>
-                <p>OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação</p>
+                <p><strong>NatanAI v4.0 - Sistema Híbrido Natural</strong></p>
+                <p>OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação + Conversação Natural</p>
                 <p style="margin-top: 10px;">📞 WhatsApp: (21) 99282-6074 | 🌐 natansites.com.br</p>
                 <p style="margin-top: 5px;">📸 Instagram: @nborges.ofc | 💼 natandev02.netlify.app</p>
             </div>
@@ -1796,7 +1283,7 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🤖 NATANAI v4.0 - SISTEMA HÍBRIDO")
+    print("🤖 NATANAI v4.0 - SISTEMA HÍBRIDO NATURAL")
     print("="*80)
     print("👨‍💻 Criador: Natan Borges Alves Nascimento")
     print("🚀 Web Developer Full-Stack")
@@ -1805,8 +1292,8 @@ if __name__ == '__main__':
     print("💼 Portfólio: natandev02.netlify.app")
     print("="*80)
     
-    # Carrega base de conhecimento
-    carregar_conhecimento_especializado()
+    # Sistema 100% dinâmico com OpenAI
+    print("✅ Sistema configurado: 100% OpenAI com informações oficiais no prompt")
     
     # Verifica OpenAI
     openai_status = verificar_openai()
@@ -1814,15 +1301,15 @@ if __name__ == '__main__':
     print(f"\n🔧 CONFIGURAÇÃO:")
     print(f"   • Modelo: {OPENAI_MODEL}")
     print(f"   • OpenAI: {'✅ CONECTADO' if openai_status else '⚠️ OFFLINE'}")
-    print(f"   • Base Especializada: ✅ {len(KNOWLEDGE_BASE)} categorias")
     print(f"   • Sistema Anti-Alucinação: ✅ ATIVO")
     print(f"   • Palavras Proibidas: {len(PALAVRAS_PROIBIDAS)}")
     print(f"   • Padrões Suspeitos: {len(PADROES_SUSPEITOS)}")
     
-    print(f"\n🎯 MODO HÍBRIDO:")
-    print(f"   1️⃣ Base Especializada (100% confiável)")
-    print(f"   2️⃣ OpenAI GPT-4o-mini (com validação)")
-    print(f"   3️⃣ Fallback Inteligente (sempre confiável)")
+    print(f"\n🎯 MODO 100% DINÂMICO:")
+    print(f"   1️⃣ OpenAI cria TODAS as respostas dinamicamente")
+    print(f"   2️⃣ Informações oficiais embutidas no prompt do sistema")
+    print(f"   3️⃣ Validação anti-alucinação (sempre ativa)")
+    print(f"   4️⃣ Sem respostas prontas - 100% inteligente e adaptável")
     
     print(f"\n🛡️ PROTEÇÕES ANTI-ALUCINAÇÃO:")
     print(f"   ✅ Validação de informações oficiais")
@@ -1833,6 +1320,12 @@ if __name__ == '__main__':
     print(f"   ✅ Verificação de WhatsApp correto")
     print(f"   ✅ Verificação de nome do criador")
     print(f"   ✅ Bloqueio de projetos inventados")
+    
+    print(f"\n💬 CONVERSAÇÃO NATURAL:")
+    print(f"   ✅ Responde perguntas casuais com empatia")
+    print(f"   ✅ Bate papo amigável e descontraído")
+    print(f"   ✅ Não força informações de serviços")
+    print(f"   ✅ Transições naturais quando relevante")
     
     print(f"\n📊 INFORMAÇÕES DOS SERVIÇOS:")
     print(f"   • Planos: Starter (R$ 39,99/mês) | Professional (R$ 79,99/mês)")
