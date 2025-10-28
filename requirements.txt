@@ -5,3 +5,4 @@ requests==2.31.0
 Werkzeug==3.0.1
 httpx==0.24.1
 httpcore==0.17.3
+supabase==2.3.4
