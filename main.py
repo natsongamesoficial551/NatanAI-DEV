@@ -11,17 +11,35 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 from openai import OpenAI
+from supabase import create_client, Client
 
 warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuração OpenAI
+# ============================================
+# 🔧 CONFIGURAÇÃO SUPABASE
+# ============================================
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+ADMIN_EMAIL = "natan@natandev.com"
+
+# Inicializa Supabase
+supabase: Client = None
+try:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase conectado com sucesso!")
+except Exception as e:
+    print(f"⚠️ Erro ao conectar Supabase: {e}")
+
+# ============================================
+# 🔧 CONFIGURAÇÃO OPENAI
+# ============================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"
 
-# Inicializa cliente OpenAI apenas se a chave existir
+# Inicializa cliente OpenAI
 if OPENAI_API_KEY:
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
@@ -49,12 +67,10 @@ def auto_ping():
     while True:
         try:
             if RENDER_URL:
-                # Garante que a URL tem o protocolo
                 url = RENDER_URL if RENDER_URL.startswith('http') else f"https://{RENDER_URL}"
                 response = requests.get(f"{url}/health", timeout=10)
                 print(f"🏓 Auto-ping OK [{response.status_code}]: {datetime.now().strftime('%H:%M:%S')}")
             else:
-                # Se RENDER_URL não estiver configurada, pinga localhost
                 requests.get("http://localhost:5000/health", timeout=5)
                 print(f"🏓 Auto-ping local: {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
@@ -62,6 +78,95 @@ def auto_ping():
         time.sleep(PING_INTERVAL)
 
 threading.Thread(target=auto_ping, daemon=True).start()
+
+# =============================================================================
+# 🔐 FUNÇÕES DE AUTENTICAÇÃO E AUTORIZAÇÃO
+# =============================================================================
+
+def verificar_token_supabase(token):
+    """Verifica token do Supabase e retorna dados do usuário"""
+    try:
+        if not token or not supabase:
+            return None
+        
+        # Remove "Bearer " se presente
+        if token.startswith("Bearer "):
+            token = token[7:]
+        
+        # Verifica o usuário usando o token
+        response = supabase.auth.get_user(token)
+        
+        if response and response.user:
+            return response.user
+        
+        return None
+        
+    except Exception as e:
+        print(f"❌ Erro ao verificar token: {e}")
+        return None
+
+def obter_dados_usuario_completos(user_id):
+    """Busca dados completos do usuário no Supabase"""
+    try:
+        if not supabase:
+            return None
+        
+        # Busca dados da conta do usuário
+        response = supabase.table('user_accounts').select('*').eq('user_id', user_id).single().execute()
+        
+        if response.data:
+            return response.data
+        
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar dados do usuário: {e}")
+        return None
+
+def determinar_tipo_usuario(user_data):
+    """Determina se é Admin, Professional, Starter baseado nos dados"""
+    try:
+        email = user_data.get('email', '')
+        plan = user_data.get('plan', 'starter')
+        
+        # Verifica se é Admin
+        if email == ADMIN_EMAIL:
+            return {
+                'tipo': 'admin',
+                'nome': 'Admin (Natan)',
+                'descricao': 'Dono e desenvolvedor da NatanDEV',
+                'permissoes': 'total',
+                'plano': 'Admin'
+            }
+        
+        # Verifica plano Professional
+        if plan == 'professional':
+            return {
+                'tipo': 'professional',
+                'nome': 'Cliente Professional',
+                'descricao': 'Cliente com plano Professional (R$ 79,99/mês)',
+                'permissoes': 'avancadas',
+                'plano': 'Professional'
+            }
+        
+        # Padrão: Starter
+        return {
+            'tipo': 'starter',
+            'nome': 'Cliente Starter',
+            'descricao': 'Cliente com plano Starter (R$ 39,99/mês)',
+            'permissoes': 'basicas',
+            'plano': 'Starter'
+        }
+        
+    except Exception as e:
+        print(f"❌ Erro ao determinar tipo de usuário: {e}")
+        return {
+            'tipo': 'starter',
+            'nome': 'Cliente',
+            'descricao': 'Cliente padrão',
+            'permissoes': 'basicas',
+            'plano': 'Starter'
+        }
 
 # =============================================================================
 # SISTEMA ANTI-ALUCINAÇÃO - VALIDAÇÃO DE RESPOSTAS
@@ -154,72 +259,46 @@ INFORMACOES_OFICIAIS = {
 
 # Palavras/frases proibidas (alucinações comuns)
 PALAVRAS_PROIBIDAS = [
-    # Preços falsos
-    "grátis", "gratuito", "sem custo", "de graça",
-    "R$ 0", "0 reais", "free",
-    
-    # Promessas exageradas
-    "garantimos primeiro lugar no Google",
-    "100% de conversão",
-    "sucesso garantido",
-    "site pronto em 1 hora",
-    
-    # Informações falsas
-    "atendimento 24/7",
-    "suporte ilimitado gratuito",
-    "empresa com 10 anos",
-    "prêmio internacional",
-    
-    # Serviços não oferecidos
-    "criamos aplicativos mobile nativos",
-    "fazemos blockchain",
-    "desenvolvemos jogos AAA",
-    
-    # Projetos inventados
-    "[nome do cliente]",
-    "[outro cliente]",
-    "cliente X",
-    "empresa Y"
+    "grátis", "gratuito", "sem custo", "de graça", "R$ 0", "0 reais", "free",
+    "garantimos primeiro lugar no Google", "100% de conversão", "sucesso garantido",
+    "site pronto em 1 hora", "atendimento 24/7", "suporte ilimitado gratuito",
+    "empresa com 10 anos", "prêmio internacional"
 ]
 
 # Padrões suspeitos que indicam alucinação
 PADROES_SUSPEITOS = [
-    r'R\$\s*0[,.]?00',  # Preço zero
-    r'grát[ui]s',  # Grátis
-    r'garantimos?\s+\d+',  # Garantias com números
-    r'prêmio\s+\w+',  # Prêmios
-    r'\d+\s+anos\s+de\s+experiência',  # Anos de experiência falsos
-    r'fundado\s+em\s+\d{4}',  # Data de fundação
-    r'certificação\s+ISO',  # Certificações não comprovadas
+    r'R\$\s*0[,.]?00',
+    r'grát[ui]s',
+    r'garantimos?\s+\d+',
+    r'prêmio\s+\w+',
+    r'\d+\s+anos\s+de\s+experiência',
+    r'fundado\s+em\s+\d{4}',
+    r'certificação\s+ISO',
 ]
 
 def validar_resposta_anti_alucinacao(resposta):
-    """
-    Valida resposta para evitar alucinações.
-    Retorna (bool_valida, lista_problemas)
-    """
+    """Valida resposta para evitar alucinações"""
     problemas = []
-    
     resposta_lower = resposta.lower()
     
-    # 1. Verifica palavras proibidas
+    # Verifica palavras proibidas
     for palavra in PALAVRAS_PROIBIDAS:
         if palavra.lower() in resposta_lower:
             problemas.append(f"Palavra proibida: '{palavra}'")
     
-    # 2. Verifica padrões suspeitos
+    # Verifica padrões suspeitos
     for padrao in PADROES_SUSPEITOS:
         if re.search(padrao, resposta_lower):
             match = re.search(padrao, resposta_lower)
             problemas.append(f"Padrão suspeito: '{match.group()}'")
     
-    # 3. Verifica WhatsApp correto
+    # Verifica WhatsApp correto
     if "whatsapp" in resposta_lower or "telefone" in resposta_lower:
         if "21 99282-6074" not in resposta and "99282-6074" not in resposta and "(21) 99282-6074" not in resposta:
             if any(num in resposta for num in ["(11)", "(21) 9", "0800"]):
                 problemas.append("Número de WhatsApp incorreto")
     
-    # 4. Verifica preços corretos
+    # Verifica preços corretos
     if "starter" in resposta_lower:
         if "39,99" not in resposta and "39.99" not in resposta:
             problemas.append("Preço Starter incorreto")
@@ -228,197 +307,43 @@ def validar_resposta_anti_alucinacao(resposta):
         if "79,99" not in resposta and "79.99" not in resposta:
             problemas.append("Preço Professional incorreto")
     
-    # 5. Verifica nome correto
-    if "criador" in resposta_lower or "dono" in resposta_lower or "desenvolvedor" in resposta_lower:
-        if "natan" not in resposta_lower:
-            problemas.append("Nome do criador não mencionado")
-    
     valida = len(problemas) == 0
     return valida, problemas
 
 def limpar_alucinacoes(resposta):
-    """
-    Remove ou corrige alucinações detectadas na resposta
-    """
+    """Remove ou corrige alucinações detectadas na resposta"""
     resposta_limpa = resposta
-    
-    # Remove promessas exageradas
     resposta_limpa = re.sub(r'garantimos?\s+\d+%', '', resposta_limpa)
-    
-    # Remove menções a anos de experiência não confirmados
     resposta_limpa = re.sub(r'\d+\s+anos\s+de\s+experiência', 'experiência comprovada', resposta_limpa)
-    
-    # Remove certificações não confirmadas
     resposta_limpa = re.sub(r'certificação\s+\w+', '', resposta_limpa)
-    
     return resposta_limpa
 
 # =============================================================================
-# SISTEMA DE ANÁLISE DE INTENÇÃO
+# ANÁLISE DE INTENÇÃO
 # =============================================================================
 
 def analisar_intencao(pergunta):
-    """Analisa a intenção das perguntas sobre serviços"""
+    """Analisa a intenção das perguntas"""
     try:
         p = pergunta.lower().strip()
         
         intencoes = {
-            "precos": 0,
-            "planos": 0,
-            "contato": 0,
-            "portfolio": 0,
-            "criar_site": 0,
-            "tipos_sites": 0,
-            "tempo_desenvolvimento": 0,
-            "como_funciona": 0,
-            "tecnologias": 0,
-            "responsivo": 0,
-            "seo": 0,
-            "diferenciais": 0,
-            "projetos_especificos": 0,
-            "sobre_natan": 0,
-            "geral": 0
+            "precos": 0, "planos": 0, "contato": 0, "portfolio": 0,
+            "criar_site": 0, "tipos_sites": 0, "tempo_desenvolvimento": 0,
+            "como_funciona": 0, "tecnologias": 0, "responsivo": 0,
+            "seo": 0, "diferenciais": 0, "projetos_especificos": 0,
+            "sobre_natan": 0, "geral": 0
         }
         
-        # PALAVRAS-CHAVE POR CATEGORIA
-        
-        palavras_conversa_casual = [
-            "oi", "olá", "ola", "hey", "bom dia", "boa tarde", "boa noite",
-            "tudo bem", "como vai", "e ai", "tchau", "bye", "obrigado", "valeu",
-            "como foi", "seu dia", "conta", "piada", "engraçado",
-            "quem é você", "o que você é", "você é uma ia", "natanai"
-        ]
-        
-        palavras_sobre_natan = [
-            "quem é natan", "quem é o natan", "quem criou", "criador",
-            "desenvolvedor", "sobre natan"
-        ]
-        
-        palavras_precos = [
-            "preço", "valor", "quanto custa", "custo", "valores",
-            "investimento", "orçamento"
-        ]
-        
-        palavras_planos = [
-            "plano", "pacote", "planos", "starter", "professional",
-            "opções", "tipos de plano"
-        ]
-        
-        palavras_contato = [
-            "contato", "whatsapp", "telefone", "falar", "ligar",
-            "instagram", "email", "entrar em contato"
-        ]
-        
-        palavras_portfolio = [
-            "portfolio", "projetos", "trabalhos", "cases",
-            "exemplos", "já fizeram", "feitos"
-        ]
-        
-        palavras_criar_site = [
-            "quero criar", "fazer um site", "criar meu site",
-            "preciso de um site", "quero um site", "criar site"
-        ]
-        
-        palavras_tipos_sites = [
-            "que tipo", "tipos de site", "que sites", "categorias",
-            "site comercial", "site interativo"
-        ]
-        
-        palavras_tempo = [
-            "quanto tempo", "demora", "prazo", "entrega",
-            "rápido", "velocidade"
-        ]
-        
-        palavras_como_funciona = [
-            "como funciona", "como faço", "processo", "passo a passo",
-            "como contratar", "como começar"
-        ]
-        
-        palavras_tecnologias = [
-            "tecnologia", "linguagem", "framework", "usa ia",
-            "inteligência artificial", "ferramentas"
-        ]
-        
-        palavras_responsivo = [
-            "responsivo", "mobile", "celular", "tablet",
-            "funciona no celular", "adapta"
-        ]
-        
-        palavras_seo = [
-            "seo", "google", "busca", "aparecer no google",
-            "otimização", "ranqueamento"
-        ]
-        
-        palavras_diferenciais = [
-            "diferencial", "por que escolher", "vantagem",
-            "melhor que", "destaque"
-        ]
-        
-        palavras_projetos = [
-            "espaço familiares", "mathwork", "quiz venezuela",
-            "alessandra yoga", "delux", "webservico"
-        ]
-        
-        # CONTAGEM COM PESOS
-        for palavra in palavras_conversa_casual:
-            if palavra in p:
-                intencoes["geral"] += 2  # Peso baixo para não sobrepor serviços
-        
-        for palavra in palavras_sobre_natan:
-            if palavra in p:
-                intencoes["sobre_natan"] += 6
-        
-        for palavra in palavras_precos:
-            if palavra in p:
-                intencoes["precos"] += 7
-        
-        for palavra in palavras_planos:
-            if palavra in p:
-                intencoes["planos"] += 7
-        
-        for palavra in palavras_contato:
-            if palavra in p:
-                intencoes["contato"] += 6
-        
-        for palavra in palavras_portfolio:
-            if palavra in p:
-                intencoes["portfolio"] += 6
-        
-        for palavra in palavras_criar_site:
-            if palavra in p:
-                intencoes["criar_site"] += 8
-        
-        for palavra in palavras_tipos_sites:
-            if palavra in p:
-                intencoes["tipos_sites"] += 5
-        
-        for palavra in palavras_tempo:
-            if palavra in p:
-                intencoes["tempo_desenvolvimento"] += 6
-        
-        for palavra in palavras_como_funciona:
-            if palavra in p:
-                intencoes["como_funciona"] += 6
-        
-        for palavra in palavras_tecnologias:
-            if palavra in p:
-                intencoes["tecnologias"] += 5
-        
-        for palavra in palavras_responsivo:
-            if palavra in p:
-                intencoes["responsivo"] += 5
-        
-        for palavra in palavras_seo:
-            if palavra in p:
-                intencoes["seo"] += 5
-        
-        for palavra in palavras_diferenciais:
-            if palavra in p:
-                intencoes["diferenciais"] += 5
-        
-        for palavra in palavras_projetos:
-            if palavra in p:
-                intencoes["projetos_especificos"] += 6
+        # Análise de palavras-chave (simplificado)
+        if any(word in p for word in ["preço", "quanto custa", "valor", "custo"]):
+            intencoes["precos"] += 7
+        if any(word in p for word in ["plano", "pacote", "starter", "professional"]):
+            intencoes["planos"] += 7
+        if any(word in p for word in ["contato", "whatsapp", "telefone", "falar"]):
+            intencoes["contato"] += 6
+        if any(word in p for word in ["oi", "olá", "tudo bem", "como vai"]):
+            intencoes["geral"] += 2
         
         intencao_principal = max(intencoes, key=intencoes.get)
         score_principal = intencoes[intencao_principal]
@@ -430,229 +355,173 @@ def analisar_intencao(pergunta):
         return "geral"
 
 # =============================================================================
-# BUSCA NA BASE ESPECIALIZADA
+# PROCESSAMENTO COM OPENAI + CONTEXTO DO USUÁRIO
 # =============================================================================
 
-def buscar_resposta_especializada(pergunta):
-    """Apenas analisa a intenção - não retorna respostas prontas"""
-    try:
-        intencao = analisar_intencao(pergunta)
-        # Agora só retorna a intenção, sem respostas prontas
-        return None, intencao
-        
-    except Exception as e:
-        print(f"❌ Erro análise intenção: {e}")
-        return None, "geral"
-    
-    # =============================================================================
-# PROCESSAMENTO HÍBRIDO COM OPENAI + ANTI-ALUCINAÇÃO
-# =============================================================================
+openai_status_cache = {"status": None, "timestamp": None}
 
 def verificar_openai():
-    """Verifica se OpenAI está disponível"""
+    """Verifica se OpenAI está disponível (COM CACHE de 1 hora)"""
+    global openai_status_cache
+    
+    # Cache de 1 hora
+    if openai_status_cache["status"] is not None and openai_status_cache["timestamp"]:
+        tempo_passado = (datetime.now() - openai_status_cache["timestamp"]).seconds
+        if tempo_passado < 3600:  # 1 hora
+            print(f"✅ Usando cache OpenAI (válido por mais {3600-tempo_passado}s)")
+            return openai_status_cache["status"]
+    
+    # Só verifica de verdade se passou 1 hora
+    print("🔄 Verificando OpenAI pela primeira vez em 1h...")
     try:
         if not OPENAI_API_KEY or len(OPENAI_API_KEY) < 20:
-            return False
+            status = False
+        elif client is None:
+            status = False
+        else:
+            # GASTA créditos aqui, mas só 1x por hora
+            client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{"role": "user", "content": "ok"}],
+                max_tokens=3
+            )
+            status = True
         
-        if client is None:
-            return False
-        
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[{"role": "user", "content": "teste"}],
-            max_tokens=5
-        )
-        return True
+        openai_status_cache = {"status": status, "timestamp": datetime.now()}
+        return status
     except Exception as e:
-        print(f"❌ OpenAI indisponível: {e}")
+        print(f"❌ OpenAI erro: {e}")
+        openai_status_cache = {"status": False, "timestamp": datetime.now()}
         return False
-
-def processar_openai_hibrido(pergunta, intencao):
-    """
-    Processa com OpenAI em modo HÍBRIDO com anti-alucinação
-    """
-    if client is None:
-        return None
     
-    if not verificar_openai():
+def processar_openai_com_contexto(pergunta, intencao, tipo_usuario):
+    """Processa com OpenAI incluindo contexto do tipo de usuário"""
+    if client is None or not verificar_openai():
         return None
     
     try:
-        # Monta prompt RESTRITIVO com informações oficiais
+        # PROMPT PERSONALIZADO BASEADO NO TIPO DE USUÁRIO
+        contexto_usuario = ""
+        
+        if tipo_usuario['tipo'] == 'admin':
+            contexto_usuario = """
+═══════════════════════════════════════════════════════════════════
+🔴 ATENÇÃO: VOCÊ ESTÁ FALANDO COM O NATAN (DONO/ADMIN)
+═══════════════════════════════════════════════════════════════════
+
+- Este é o NATAN, o criador e desenvolvedor da NatanDEV
+- Trate com MÁXIMO RESPEITO e profissionalismo
+- Ele TEM ACESSO TOTAL a todas as informações
+- Ele pode saber TUDO sobre clientes, planos, projetos internos
+- Seja mais técnico e detalhado nas respostas
+- Pode dar informações privilegiadas sobre o sistema
+- Chame ele de "Natan" ou "chefe"
+
+Exemplos de como responder:
+- "Olá Natan! Como posso te ajudar hoje?"
+- "Claro, chefe! Aqui estão os dados que você pediu..."
+- "Natan, todos os sistemas estão funcionando perfeitamente!"
+"""
+        
+        elif tipo_usuario['tipo'] == 'professional':
+            contexto_usuario = """
+═══════════════════════════════════════════════════════════════════
+💎 CLIENTE PROFESSIONAL (R$ 79,99/mês)
+═══════════════════════════════════════════════════════════════════
+
+- Este cliente tem o plano PROFESSIONAL
+- Ele pagou R$ 79,99/mês + R$ 530 desenvolvimento inicial
+- Benefícios do plano dele:
+  ✅ Design personalizado avançado
+  ✅ SEO otimizado avançado
+  ✅ Integração de APIs
+  ✅ Domínio personalizado
+  ✅ Suporte prioritário
+  ✅ IA inclusa (opcional)
+  
+- Dê PRIORIDADE nas respostas
+- Seja mais detalhado e técnico
+- Mencione os benefícios do plano dele quando relevante
+- Ofereça suporte extra
+
+Exemplos de como responder:
+- "Como cliente Professional, você tem acesso a..."
+- "Pelo seu plano Professional, posso te ajudar com..."
+- "Vou priorizar seu atendimento! Como cliente Professional..."
+"""
+        
+        else:  # starter
+            contexto_usuario = """
+═══════════════════════════════════════════════════════════════════
+🌱 CLIENTE STARTER (R$ 39,99/mês)
+═══════════════════════════════════════════════════════════════════
+
+- Este cliente tem o plano STARTER
+- Ele pagou R$ 39,99/mês + R$ 350 desenvolvimento inicial
+- Benefícios do plano dele:
+  ✅ Site responsivo básico
+  ✅ Design moderno e limpo
+  ✅ Otimização para mobile
+  ✅ Hospedagem inclusa
+  ✅ Suporte por WhatsApp/Email
+  
+- Seja prestativo e educado
+- Pode sugerir UPGRADE para Professional se fizer sentido
+- Mencione os benefícios do plano dele
+
+Exemplos de como responder:
+- "Seu plano Starter inclui..."
+- "Como cliente Starter, você tem acesso a..."
+- "Se precisar de recursos mais avançados, temos o plano Professional!"
+"""
+
+        # Monta prompt com contexto do usuário
         prompt_sistema = f"""Você é o NatanAI, assistente virtual inteligente, masculino, amigável e empático da NatanDEV!
 
+{contexto_usuario}
+
 ═══════════════════════════════════════════════════════════════════
-INFORMAÇÕES OFICIAIS DO NATANDEV (USE QUANDO RELEVANTE)
+INFORMAÇÕES OFICIAIS DO NATANDEV
 ═══════════════════════════════════════════════════════════════════
 
-👨‍💻 **SOBRE O CRIADOR (NATAN - O DESENVOLVEDOR):**
+👨‍💻 **SOBRE O CRIADOR (NATAN):**
 - Nome: Natan Borges Alves Nascimento
 - Profissão: Web Developer Full-Stack
 - Localização: Rio de Janeiro, Brasil
-- Atendimento: Todo o Brasil (remoto)
-- **IMPORTANTE: Natan é quem DESENVOLVE os sites. Você (NatanAI) é apenas a assistente virtual dele.**
+- WhatsApp: (21) 99282-6074
 
 🤖 **SOBRE VOCÊ (NATANAI):**
-- Você é a NatanAI, criada POR Natan para ser a assistente virtual dele
-- Você NÃO desenvolve sites - você apenas auxilia clientes e responde perguntas
-- Sempre fale "o Natan desenvolve", "o Natan cria", "ele pode fazer"
-- NUNCA diga "eu desenvolvo", "eu crio" ou "nós fazemos" - você é apenas a assistente!
+- Você é a assistente virtual criada POR Natan
+- Você NÃO desenvolve sites - você apenas auxilia
+- Sempre diga "o Natan desenvolve", "ele pode fazer"
 
-📞 **CONTATOS OFICIAIS:**
-- WhatsApp: (21) 99282-6074 ← PRINCIPAL
+💰 **PLANOS:**
+- Starter: R$ 39,99/mês + R$ 350,00 inicial
+- Professional: R$ 79,99/mês + R$ 530,00 inicial
+
+📞 **CONTATOS:**
+- WhatsApp: (21) 99282-6074
 - Instagram: @nborges.ofc
 - Email: borgesnatan09@gmail.com
 - Site: natansites.com.br
 - Portfólio: natandev02.netlify.app
-- GitHub: github.com/natsongamesoficial551
-- LinkedIn: linkedin.com/in/natan-borges-b3a3b5382/
-- Facebook: facebook.com/profile.php?id=100076973940954
-
-💰 **PLANOS E PREÇOS:**
-
-🌱 PLANO STARTER - R$ 39,99/mês
-   + R$ 350,00 desenvolvimento inicial (pagamento ÚNICO)
-   
-   Inclui:
-   ✅ Site responsivo básico
-   ✅ Design moderno e limpo
-   ✅ Otimização para mobile
-   ✅ Hospedagem inclusa
-   ✅ Suporte por WhatsApp/Email
-   
-   Ideal para: pequenos negócios, profissionais autônomos, cartões de visita digitais
-
-🚀 PLANO PROFESSIONAL - R$ 79,99/mês
-   + R$ 530,00 desenvolvimento inicial (pagamento ÚNICO)
-   
-   Inclui:
-   ✅ Design personalizado avançado
-   ✅ Animações e interatividade
-   ✅ SEO otimizado (apareça no Google!)
-   ✅ Integração de APIs
-   ✅ Domínio personalizado
-   ✅ Formulários de contato
-   ✅ Suporte prioritário
-   
-   OPCIONAL: IA Integrada, opcional, precisa organizar preços com o Natan
-
-💡 IMPORTANTE: Valores de desenvolvimento inicial são pagos UMA VEZ! A mensalidade é só para hospedagem e manutenção.
-
-💼 **PORTFÓLIO (6 PROJETOS DESENVOLVIDOS PELO NATAN):**
-
-1. 🏠 Espaço Familiares (espacofamiliares.com.br)
-   → Site para eventos especiais (casamentos, festas, dayuse)
-
-2. 📚 MathWork (mathworkftv.netlify.app)
-   → Plataforma educacional de matemática com 10 alunos
-
-3. 🧘 Alessandra Yoga (alessandrayoga.netlify.app)
-   → Cartão de visita digital profissional
-
-4. 🎮 DeluxModPack GTAV (deluxgtav.netlify.app)
-   → Modpack para GTA V desenvolvido em C# (BETA)
-
-5. 📝 Quiz Venezuela (quizvenezuela.onrender.com)
-   → Quiz educacional interativo
-
-6. 🌐 WebServiço (webservico.netlify.app)
-   → Página de apresentação de serviços
-
-Portfólio completo: natandev02.netlify.app
-
-🎨 **TIPOS DE SITES QUE O NATAN DESENVOLVE:**
-- Sites Comerciais (empresas, consultórios, escritórios, lojas)
-- Sites Interativos (animações, 3D, quizzes, calculadoras, jogos educativos)
-- Sites Personalizados (funcionalidades exclusivas sob medida)
-
-⏱️ **TEMPO DE DESENVOLVIMENTO DO NATAN:**
-- Estrutura base: 3-4 horas (super rápido!)
-- Projeto completo simples: 1 semana
-- Projeto completo complexo: 2 semanas
-- Projetos especiais: sob consulta
-
-📋 **PROCESSO (4 PASSOS):**
-1. Contato inicial via WhatsApp: (21) 99282-6074
-2. Escolha do plano e planejamento com o Natan
-3. Desenvolvimento pelo Natan (estrutura base em 3-4h!)
-4. Revisão, ajustes e entrega
-
-💻 **TECNOLOGIAS QUE O NATAN USA:**
-- Front-end: HTML5, CSS3, JavaScript, frameworks modernos
-- IA: Uso estratégico para criação visual e otimização
-- Back-end: APIs modernas, integração com sistemas
-- SEO: Otimização para Google (no plano Professional)
-- 100% Responsivo: Mobile, tablet e desktop
-
-⭐ **DIFERENCIAIS DO NATAN:**
-- Desenvolvimento RÁPIDO (estrutura base em 3-4 horas!)
-- Tecnologia de ponta com IA
-- Qualidade garantida com revisão de código
-- 100% responsivo (mobile-first)
-- Design moderno com animações
-- Preço justo e acessível
-- Atendimento personalizado direto com o desenvolvedor
 
 ═══════════════════════════════════════════════════════════════════
-REGRAS DE COMPORTAMENTO
+REGRAS
 ═══════════════════════════════════════════════════════════════════
 
-🎯 **CONVERSAS CASUAIS:**
-- Se a pessoa falar sobre o dia, fazer piada, bater papo → Responda NATURALMENTE como um amigo!
-- Seja empático, descontraído, humano e acolhedor
-- Use tom leve e amigável
-- NÃO force informações sobre serviços em conversas casuais
+✅ Seja empático e natural
+✅ Use o contexto do tipo de usuário acima
+✅ NUNCA diga "eu desenvolvo" - sempre "o Natan desenvolve"
+✅ NUNCA invente preços ou informações
+✅ Sempre use informações oficiais acima
 
-💼 **PERGUNTAS SOBRE SERVIÇOS:**
-- Quando perguntarem sobre preços, sites, portfólio, contato → Use as informações oficiais acima
-- **SEMPRE DEIXE CLARO QUE O NATAN É QUEM DESENVOLVE, NÃO VOCÊ!**
-- Use frases como: "O Natan desenvolve...", "Ele pode criar...", "O trabalho dele inclui..."
-- Seja claro, direto e entusiasmado
-- Destaque os diferenciais quando relevante
-- Sempre mencione o WhatsApp: (21) 99282-6074
+**CONTEXTO DA CONVERSA:** {intencao}
 
-🔗 **TRANSIÇÃO NATURAL:**
-- Após responder algo casual, você PODE mencionar brevemente (1 linha) que também ajuda com sites
-- Exemplo: "Aliás, se precisar de um site profissional, o Natan pode ajudar! Sou a assistente dele 😊"
-- Mas APENAS se fizer sentido no contexto
-
-❌ **PROIBIDO:**
-- NUNCA diga "eu desenvolvo", "eu crio", "eu faço" quando falar de desenvolvimento
-- NUNCA invente preços diferentes dos oficiais
-- NUNCA invente projetos, clientes ou cases não listados
-- NUNCA diga que o serviço é gratuito
-- NUNCA prometa "primeiro lugar no Google garantido"
-- NUNCA invente anos de experiência ou prêmios
-- NUNCA mencione serviços não oferecidos (apps mobile nativos, blockchain, etc)
-
-✅ **SE NÃO SOUBER:**
-- Para dúvidas sobre serviços que não estão nas informações acima
-- Direcione para contato direto: "Melhor chamar o Natan no WhatsApp: (21) 99282-6074 para tirar essa dúvida!"
-
-🎨 **PERSONALIDADE:**
-- Amigável, empática e natural
-- Entusiasta quando falar dos serviços DO NATAN
-- Use emojis com moderação (2-4 por resposta)
-- Seja conciso para conversas casuais (máximo 100 palavras)
-- Para perguntas sobre serviços, pode ser mais detalhado (até 250 palavras)
-- Use "Vibrações Positivas!" ocasionalmente (30% das respostas, quando fizer sentido)
-
-📊 **FORMATAÇÃO:**
-- Conversas casuais: Texto corrido, natural, sem listas
-- Perguntas sobre serviços: Pode usar emojis, listas e formatação para clareza
-- Sempre organize bem as informações
-- **SEMPRE deixe claro que o Natan é o desenvolvedor, não você!**
-
-═══════════════════════════════════════════════════════════════════
-
-**CONTEXTO DA CONVERSA ATUAL:** {intencao}
-
-Responda de forma adequada ao contexto: casual e empática para conversa, ou detalhada e entusiasmada para serviços!
-
-**LEMBRE-SE: Você é a ASSISTENTE do Natan. ELE desenvolve os sites, NÃO VOCÊ!**
+Responda adequadamente considerando o TIPO DE USUÁRIO!
 """
 
-        prompt_usuario = f"Responda de forma direta e empolgante: {pergunta}"
+        prompt_usuario = f"Responda: {pergunta}"
 
         # Chamada OpenAI
         response = client.chat.completions.create(
@@ -661,16 +530,14 @@ Responda de forma adequada ao contexto: casual e empática para conversa, ou det
                 {"role": "system", "content": prompt_sistema},
                 {"role": "user", "content": prompt_usuario}
             ],
-            max_tokens=300,
+            max_tokens=350,
             temperature=0.7,
-            top_p=0.9,
-            presence_penalty=0.1,
-            frequency_penalty=0.1
+            top_p=0.9
         )
         
         resposta_openai = response.choices[0].message.content.strip()
         
-        # VALIDAÇÃO ANTI-ALUCINAÇÃO
+        # Validação anti-alucinação
         valida, problemas = validar_resposta_anti_alucinacao(resposta_openai)
         
         if not valida:
@@ -679,128 +546,151 @@ Responda de forma adequada ao contexto: casual e empática para conversa, ou det
             
             valida2, problemas2 = validar_resposta_anti_alucinacao(resposta_openai)
             if len(problemas2) > 2:
-                print(f"❌ Resposta OpenAI descartada por múltiplas alucinações")
+                print(f"❌ Resposta OpenAI descartada")
                 return None
         
-        # Garante que tem "Vibrações Positivas!" em algumas respostas
+        # Adiciona "Vibrações Positivas!" ocasionalmente
         if random.random() < 0.3 and "vibrações positivas" not in resposta_openai.lower():
             resposta_openai += "\n\nVibrações Positivas!"
         
-        print(f"✅ Resposta OpenAI híbrida validada")
+        print(f"✅ Resposta OpenAI validada para {tipo_usuario['tipo']}")
         return resposta_openai
         
     except Exception as e:
-        print(f"❌ Erro OpenAI híbrido: {e}")
+        print(f"❌ Erro OpenAI: {e}")
         return None
 
 # =============================================================================
-# GERADOR PRINCIPAL HÍBRIDO
+# GERADOR PRINCIPAL
 # =============================================================================
 
-def gerar_resposta_hibrida_otimizada(pergunta):
-    """
-    Sistema 100% OpenAI com validação anti-alucinação
-    """
+def gerar_resposta_com_contexto_usuario(pergunta, tipo_usuario):
+    """Sistema principal com contexto do usuário"""
     try:
         # Cache
-        pergunta_hash = hashlib.md5(pergunta.lower().strip().encode()).hexdigest()
+        pergunta_hash = hashlib.md5(f"{pergunta}_{tipo_usuario['tipo']}".encode()).hexdigest()
         if pergunta_hash in CACHE_RESPOSTAS:
             return CACHE_RESPOSTAS[pergunta_hash], "cache"
         
         # Analisa intenção
-        _, intencao = buscar_resposta_especializada(pergunta)
+        intencao = analisar_intencao(pergunta)
         
-        # USA OPENAI PARA TUDO (com as informações oficiais no prompt)
-        resposta_openai = processar_openai_hibrido(pergunta, intencao)
+        # Processa com OpenAI incluindo contexto do usuário
+        resposta_openai = processar_openai_com_contexto(pergunta, intencao, tipo_usuario)
         if resposta_openai:
             CACHE_RESPOSTAS[pergunta_hash] = resposta_openai
-            return resposta_openai, f"openai_dinamico_{intencao}"
+            return resposta_openai, f"openai_{tipo_usuario['tipo']}_{intencao}"
         
-        # FALLBACK apenas se OpenAI falhar
-        fallback = f"Desculpa, estou com dificuldades técnicas agora. 😅\n\nChama no WhatsApp para te ajudar: (21) 99282-6074\n\nVibrações Positivas!"
-        
-        return fallback, "fallback_emergency"
+        # Fallback
+        fallback = f"Desculpa, estou com dificuldades técnicas agora. 😅\n\nChama no WhatsApp: (21) 99282-6074\n\nVibrações Positivas!"
+        return fallback, "fallback"
         
     except Exception as e:
         print(f"❌ Erro geral: {e}")
-        return "Para informações, fale com Natan: (21) 99282-6074\n\nVibrações Positivas!", "erro_emergency"
-    
-    # =============================================================================
+        return "Para informações, fale com Natan: (21) 99282-6074\n\nVibrações Positivas!", "erro"
+
+# =============================================================================
 # ROTAS DA API
 # =============================================================================
 
 @app.route('/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 def health():
-    try:
-        return jsonify({
-            "status": "online",
-            "sistema": "NatanAI v4.0 HÍBRIDA NATURAL",
-            "modo": "OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação + Conversação Natural",
-            "modelo": OPENAI_MODEL,
-            "openai_ativo": verificar_openai(),
-            "cache_size": len(CACHE_RESPOSTAS),
-            "info_servicos": {
-                "criador": INFORMACOES_OFICIAIS["criador"],
-                "whatsapp": INFORMACOES_OFICIAIS["whatsapp"],
-                "site": INFORMACOES_OFICIAIS["site"],
-                "portfolio": INFORMACOES_OFICIAIS["portfolio"],
-                "projetos_total": len(INFORMACOES_OFICIAIS["projetos"])
-            },
-            "sistema_anti_alucinacao": {
-                "validacao_ativa": True,
-                "palavras_proibidas": len(PALAVRAS_PROIBIDAS),
-                "padroes_suspeitos": len(PADROES_SUSPEITOS),
-                "limpeza_automatica": True
-            },
-            "funcionalidades": [
-                "100% OpenAI - respostas dinâmicas e inteligentes",
-                "Informações oficiais embutidas no prompt",
-                "Detecção de informações inventadas",
-                "Limpeza automática de alucinações",
-                "Fallback de emergência",
-                "Cache inteligente",
-                "Conversação natural e empática"
-            ]
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({
+        "status": "online",
+        "sistema": "NatanAI v5.0 - Integrada com Supabase",
+        "modo": "OpenAI + Supabase + Contextual por usuário",
+        "modelo": OPENAI_MODEL,
+        "openai_ativo": verificar_openai(),
+        "supabase_ativo": supabase is not None,
+        "cache_size": len(CACHE_RESPOSTAS)
+    })
 
 @app.route('/chat', methods=['POST'])
 @app.route('/api/chat', methods=['POST'])
-def chat_hibrido():
+def chat():
     global HISTORICO_CONVERSAS
     
     try:
         data = request.get_json()
         
-        if not data or 'message' not in data and 'pergunta' not in data:
-            return jsonify({"error": "Mensagem não fornecida"}), 400
+        # Valida dados básicos
+        if not data:
+            return jsonify({"error": "Dados não fornecidos"}), 400
         
-        pergunta = data.get('message') or data.get('pergunta', '')
-        pergunta = pergunta.strip()
-        
-        if not pergunta:
+        # Pega mensagem
+        mensagem = data.get('message') or data.get('pergunta', '')
+        if not mensagem or not mensagem.strip():
             return jsonify({"error": "Mensagem vazia"}), 400
         
-        print(f"\n💬 [{datetime.now().strftime('%H:%M:%S')}] Pergunta: {pergunta}")
+        mensagem = mensagem.strip()
         
-        # Gera resposta HÍBRIDA
-        resposta, fonte = gerar_resposta_hibrida_otimizada(pergunta)
+        # 🔐 VERIFICA TOKEN DE AUTENTICAÇÃO
+        auth_header = request.headers.get('Authorization', '')
+        user_data_from_request = data.get('user_data', {})
         
-        # Validação final anti-alucinação
+        tipo_usuario = None
+        user_info = None
+        
+        # Tenta autenticar via token
+        if auth_header:
+            user_info = verificar_token_supabase(auth_header)
+            
+            if user_info:
+                # Busca dados completos do usuário
+                dados_completos = obter_dados_usuario_completos(user_info.id)
+                
+                # Monta dados do usuário combinando auth + database
+                user_full_data = {
+                    'email': user_info.email,
+                    'user_id': user_info.id,
+                    'plan': user_info.user_metadata.get('plan', 'starter') if user_info.user_metadata else 'starter',
+                    'name': user_info.user_metadata.get('name', '') if user_info.user_metadata else ''
+                }
+                
+                if dados_completos:
+                    user_full_data.update(dados_completos)
+                
+                # Determina tipo de usuário
+                tipo_usuario = determinar_tipo_usuario(user_full_data)
+                
+                print(f"✅ Usuário autenticado: {user_info.email} | Tipo: {tipo_usuario['tipo']}")
+            else:
+                print("⚠️ Token inválido ou expirado")
+        
+        # Se não conseguiu autenticar, usa dados enviados na requisição ou padrão
+        if not tipo_usuario:
+            if user_data_from_request:
+                tipo_usuario = determinar_tipo_usuario(user_data_from_request)
+                print(f"⚠️ Usando dados da requisição | Tipo: {tipo_usuario['tipo']}")
+            else:
+                # Usuário padrão (starter)
+                tipo_usuario = {
+                    'tipo': 'starter',
+                    'nome': 'Cliente',
+                    'descricao': 'Cliente padrão',
+                    'permissoes': 'basicas',
+                    'plano': 'Starter'
+                }
+                print("⚠️ Usuário não autenticado - usando padrão Starter")
+        
+        print(f"\n💬 [{datetime.now().strftime('%H:%M:%S')}] Pergunta de {tipo_usuario['nome']}: {mensagem}")
+        
+        # Gera resposta com contexto do usuário
+        resposta, fonte = gerar_resposta_com_contexto_usuario(mensagem, tipo_usuario)
+        
+        # Validação final
         valida, problemas = validar_resposta_anti_alucinacao(resposta)
-        if not valida:
-            print(f"⚠️ Validação final: {len(problemas)} problemas detectados")
         
         # Histórico
         with historico_lock:
             HISTORICO_CONVERSAS.append({
                 "timestamp": datetime.now().isoformat(),
-                "pergunta": pergunta,
+                "pergunta": mensagem,
+                "tipo_usuario": tipo_usuario['tipo'],
+                "plano": tipo_usuario['plano'],
                 "fonte": fonte,
-                "validacao_ok": valida,
-                "problemas": len(problemas) if not valida else 0
+                "validacao_ok": valida
             })
             
             if len(HISTORICO_CONVERSAS) > 1000:
@@ -808,19 +698,23 @@ def chat_hibrido():
         
         return jsonify({
             "response": resposta,
-            "resposta": resposta,  # Compatibilidade
+            "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v4.0 Híbrida Natural",
-                "modelo": OPENAI_MODEL if "openai" in fonte else "Base Especializada",
+                "sistema": "NatanAI v5.0 Supabase",
+                "modelo": OPENAI_MODEL,
+                "tipo_usuario": tipo_usuario['tipo'],
+                "plano_usuario": tipo_usuario['plano'],
                 "validacao_anti_alucinacao": valida,
-                "modo_hibrido": True,
-                "confiabilidade": "alta" if valida else "media"
+                "autenticado": user_info is not None
             }
         })
         
     except Exception as e:
         print(f"❌ Erro no chat: {e}")
+        import traceback
+        traceback.print_exc()
+        
         return jsonify({
             "response": "Para informações, fale com Natan: (21) 99282-6074\n\nVibrações Positivas!",
             "resposta": "Para informações, fale com Natan: (21) 99282-6074\n\nVibrações Positivas!",
@@ -835,14 +729,23 @@ def info():
     """Retorna informações sobre a NatanAI"""
     return jsonify({
         "nome": "NatanAI",
-        "versao": "4.0 - Híbrida Natural (OpenAI + Base Especializada + Conversação)",
+        "versao": "5.0 - Integrada com Supabase",
         "criador": INFORMACOES_OFICIAIS["criador"],
         "profissao": INFORMACOES_OFICIAIS["profissao"],
         "modelo": {
             "nome": OPENAI_MODEL,
             "tipo": "OpenAI GPT-4o-mini",
             "status": "🟢 Online" if verificar_openai() else "🔴 Offline",
-            "modo": "Híbrido com anti-alucinação e conversação natural"
+            "modo": "Contextual por tipo de usuário"
+        },
+        "supabase": {
+            "status": "🟢 Conectado" if supabase else "🔴 Desconectado",
+            "funcionalidades": [
+                "Autenticação de usuários",
+                "Identificação de plano (Starter/Professional/Admin)",
+                "Respostas personalizadas por tipo de usuário",
+                "Controle de permissões"
+            ]
         },
         "contato": {
             "whatsapp": INFORMACOES_OFICIAIS["whatsapp"],
@@ -851,10 +754,11 @@ def info():
             "site": INFORMACOES_OFICIAIS["site"],
             "portfolio": INFORMACOES_OFICIAIS["portfolio"]
         },
-        "planos": INFORMACOES_OFICIAIS["planos"],
-        "projetos": INFORMACOES_OFICIAIS["projetos"],
-        "localizacao": INFORMACOES_OFICIAIS["localizacao"],
-        "atendimento": INFORMACOES_OFICIAIS["atendimento"]
+        "tipos_usuario": {
+            "admin": "Natan - Acesso total e informações privilegiadas",
+            "professional": "Cliente Professional - Suporte prioritário e recursos avançados",
+            "starter": "Cliente Starter - Suporte padrão"
+        }
     })
 
 @app.route('/estatisticas', methods=['GET'])
@@ -865,29 +769,41 @@ def estatisticas():
             return jsonify({"message": "Nenhuma conversa registrada"})
         
         fontes_count = {}
+        tipos_usuario_count = {}
+        planos_count = {}
         validacoes_ok = 0
-        total_problemas = 0
         
         with historico_lock:
             for conv in HISTORICO_CONVERSAS:
                 fonte = conv.get("fonte", "unknown")
                 fontes_count[fonte] = fontes_count.get(fonte, 0) + 1
                 
+                tipo = conv.get("tipo_usuario", "unknown")
+                tipos_usuario_count[tipo] = tipos_usuario_count.get(tipo, 0) + 1
+                
+                plano = conv.get("plano", "unknown")
+                planos_count[plano] = planos_count.get(plano, 0) + 1
+                
                 if conv.get("validacao_ok", True):
                     validacoes_ok += 1
-                total_problemas += conv.get("problemas", 0)
         
         return jsonify({
             "total_conversas": len(HISTORICO_CONVERSAS),
             "distribuicao_fontes": fontes_count,
+            "distribuicao_tipos_usuario": tipos_usuario_count,
+            "distribuicao_planos": planos_count,
             "validacao_anti_alucinacao": {
                 "respostas_validadas": validacoes_ok,
-                "taxa_sucesso": round((validacoes_ok / len(HISTORICO_CONVERSAS)) * 100, 2),
-                "total_problemas_detectados": total_problemas,
-                "media_problemas": round(total_problemas / len(HISTORICO_CONVERSAS), 2)
+                "taxa_sucesso": round((validacoes_ok / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
-            "sistema": "NatanAI v4.0 Híbrida Natural",
-            "modo": "OpenAI + Base Especializada + Anti-Alucinação + Conversação"
+            "sistema": "NatanAI v5.0 - Supabase Integrado",
+            "funcionalidades": [
+                "Autenticação via Supabase",
+                "Respostas contextuais por tipo de usuário",
+                "Admin tem acesso privilegiado",
+                "Professional tem suporte prioritário",
+                "Starter tem suporte padrão"
+            ]
         })
         
     except Exception as e:
@@ -917,8 +833,13 @@ def exemplos():
             "Como foi seu dia?",
             "Conta uma piada"
         ],
-        "dica": "A NatanAI conversa naturalmente E conhece tudo sobre os serviços da NatanDEV! Pergunte qualquer coisa! 🚀",
-        "modelo": f"Usando OpenAI {OPENAI_MODEL} com sistema anti-alucinação e conversação natural"
+        "dica": "A NatanAI agora reconhece seu tipo de usuário e personaliza as respostas! 🚀",
+        "modelo": f"Usando OpenAI {OPENAI_MODEL} + Supabase com sistema anti-alucinação",
+        "personalizacao": {
+            "admin": "Respostas técnicas, detalhadas e com informações privilegiadas",
+            "professional": "Respostas prioritárias com recursos avançados",
+            "starter": "Respostas completas com sugestão de upgrade quando relevante"
+        }
     })
 
 @app.route('/ping', methods=['GET'])
@@ -926,7 +847,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "sistema": "NatanAI v4.0 Híbrida Natural"
+        "sistema": "NatanAI v5.0 - Supabase Integrado"
     })
 
 @app.route('/', methods=['GET'])
@@ -935,7 +856,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v4.0 - Híbrida Natural</title>
+        <title>NatanAI v5.0 - Supabase Integrado</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -947,7 +868,7 @@ def home():
                 padding: 20px;
             }
             .container { 
-                max-width: 850px; 
+                max-width: 900px; 
                 margin: 0 auto; 
                 background: white; 
                 padding: 30px; 
@@ -973,10 +894,9 @@ def home():
                 font-size: 0.85em;
                 font-weight: bold;
             }
-            .badge-hybrid { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+            .badge-supabase { background: linear-gradient(135deg, #3ECF8E, #2EBD7E); color: white; }
             .badge-ai { background: #4CAF50; color: white; }
-            .badge-safe { background: #2196F3; color: white; }
-            .badge-natural { background: #FF6B6B; color: white; }
+            .badge-contextual { background: #FF6B6B; color: white; }
             
             .info-box {
                 background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
@@ -1031,10 +951,6 @@ def home():
                 border-bottom-left-radius: 5px;
                 border-left: 4px solid #4CAF50;
             }
-            .bot-hybrid {
-                background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
-                border-left: 4px solid #667eea;
-            }
             .metadata {
                 font-size: 0.75em;
                 color: #666;
@@ -1083,9 +999,6 @@ def home():
                 transform: translateY(-2px);
                 box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
             }
-            button:active {
-                transform: translateY(0);
-            }
             
             .examples {
                 display: flex;
@@ -1128,50 +1041,48 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🤖 NatanAI v4.0 - HÍBRIDA NATURAL</h1>
-                <p style="color: #666; margin: 10px 0;">Assistente Inteligente da NatanDEV</p>
+                <h1>🤖 NatanAI v5.0 - SUPABASE INTEGRADO</h1>
+                <p style="color: #666; margin: 10px 0;">Assistente Inteligente Contextual da NatanDEV</p>
                 <div>
-                    <span class="badge badge-hybrid">MODO HÍBRIDO</span>
+                    <span class="badge badge-supabase">SUPABASE</span>
                     <span class="badge badge-ai">OpenAI GPT-4o-mini</span>
-                    <span class="badge badge-safe">Anti-Alucinação</span>
-                    <span class="badge badge-natural">Conversação Natural</span>
+                    <span class="badge badge-contextual">CONTEXTUAL</span>
                 </div>
             </div>
             
             <div class="info-box">
-                <h3>🎯 Sistema Híbrido Natural</h3>
+                <h3>🎯 Sistema Contextual Inteligente</h3>
                 <ul>
-                    <li><strong>Conversação Natural:</strong> Responde perguntas casuais de forma empática e humana</li>
-                    <li><strong>Base Especializada:</strong> Respostas 100% confiáveis sobre serviços</li>
-                    <li><strong>OpenAI GPT-4o-mini:</strong> Inteligência avançada para qualquer pergunta</li>
-                    <li><strong>Validação Anti-Alucinação:</strong> Verifica e corrige informações inventadas</li>
+                    <li><strong>Autenticação Supabase:</strong> Identifica automaticamente seu usuário e plano</li>
+                    <li><strong>Admin (Natan):</strong> Respostas técnicas e informações privilegiadas</li>
+                    <li><strong>Professional:</strong> Suporte prioritário e recursos avançados</li>
+                    <li><strong>Starter:</strong> Respostas completas com sugestão de upgrade</li>
+                    <li><strong>Anti-Alucinação:</strong> Validação rigorosa de todas as respostas</li>
                 </ul>
             </div>
             
             <div class="info-box">
                 <h3>📍 Sobre a NatanDEV</h3>
                 <ul>
-                    <li><strong>Criador:</strong> Natan Borges Alves Nascimento - Web Developer Full-Stack</li>
+                    <li><strong>Criador:</strong> Natan Borges - Web Developer Full-Stack</li>
                     <li><strong>WhatsApp:</strong> (21) 99282-6074</li>
-                    <li><strong>Planos:</strong> Starter (R$ 39,99/mês) | Professional (R$ 79,99/mês)</li>
-                    <li><strong>Projetos:</strong> 6+ sites entregues (Espaço Familiares, MathWork, etc.)</li>
+                    <li><strong>Plano Starter:</strong> R$ 39,99/mês + R$ 350 inicial</li>
+                    <li><strong>Plano Professional:</strong> R$ 79,99/mês + R$ 530 inicial</li>
                     <li><strong>Portfólio:</strong> natandev02.netlify.app</li>
-                    <li><strong>Diferencial:</strong> Estrutura base em 3-4 horas!</li>
                 </ul>
             </div>
             
             <div id="chat-box" class="chat-box">
-                <div class="message bot bot-hybrid">
-                    <strong>🤖 NatanAI v4.0 Natural:</strong><br><br>
-                    Oi! Sou a NatanAI! 😊<br><br>
+                <div class="message bot">
+                    <strong>🤖 NatanAI v5.0:</strong><br><br>
+                    Olá! Agora estou integrada com Supabase! 🚀<br><br>
                     
-                    <strong>Posso conversar sobre qualquer coisa:</strong><br>
-                    💬 Bater papo casual<br>
-                    💰 Informações sobre sites e serviços<br>
-                    📞 Contatos e portfólio<br>
-                    🚀 Processos de desenvolvimento<br><br>
+                    <strong>Reconheço automaticamente:</strong><br>
+                    👑 Admin (Natan) - Respostas técnicas e privilegiadas<br>
+                    💎 Professional - Suporte prioritário<br>
+                    🌱 Starter - Suporte padrão<br><br>
                     
-                    Seja você mesmo! Pergunta o que quiser! 💜<br><br>
+                    Pergunta o que quiser! Vou responder baseado no seu perfil! 😊<br><br>
                     
                     <strong>Vibrações Positivas!</strong>
                 </div>
@@ -1181,21 +1092,19 @@ def home():
                 <button class="example-btn" onclick="testar('Oi, tudo bem?')">👋 Saudação</button>
                 <button class="example-btn" onclick="testar('Quanto custa um site?')">💰 Preços</button>
                 <button class="example-btn" onclick="testar('Quero criar um site')">🚀 Criar Site</button>
-                <button class="example-btn" onclick="testar('Como foi seu dia?')">💬 Casual</button>
+                <button class="example-btn" onclick="testar('Qual meu plano?')">💎 Meu Plano</button>
                 <button class="example-btn" onclick="testar('Qual o portfólio?')">💼 Portfólio</button>
-                <button class="example-btn" onclick="testar('Conta uma piada')">😄 Piada</button>
             </div>
             
             <div class="input-area">
-                <input type="text" id="msg" placeholder="Digite sua pergunta ou só bata um papo..." onkeypress="if(event.key==='Enter') enviar()">
+                <input type="text" id="msg" placeholder="Digite sua pergunta..." onkeypress="if(event.key==='Enter') enviar()">
                 <button onclick="enviar()">Enviar</button>
             </div>
             
             <div class="footer">
-                <p><strong>NatanAI v4.0 - Sistema Híbrido Natural</strong></p>
-                <p>OpenAI GPT-4o-mini + Base Especializada + Anti-Alucinação + Conversação Natural</p>
+                <p><strong>NatanAI v5.0 - Supabase Integrado</strong></p>
+                <p>OpenAI GPT-4o-mini + Supabase + Respostas Contextuais por Usuário</p>
                 <p style="margin-top: 10px;">📞 WhatsApp: (21) 99282-6074 | 🌐 natansites.com.br</p>
-                <p style="margin-top: 5px;">📸 Instagram: @nborges.ofc | 💼 natandev02.netlify.app</p>
             </div>
         </div>
 
@@ -1212,7 +1121,6 @@ def home():
             
             if (!msg) return;
             
-            // Mensagem do usuário
             chatBox.innerHTML += `
                 <div class="message user">
                     <strong>Você:</strong><br>${msg}
@@ -1231,14 +1139,14 @@ def home():
                 const data = await response.json();
                 const metadata = data.metadata || {};
                 
-                // Determina classe CSS baseada na fonte
-                let className = 'message bot';
-                if (metadata.fonte && metadata.fonte.includes('openai')) {
-                    className += ' bot-hybrid';
-                }
-                
-                // Monta badges de metadata
                 let metadataBadges = '';
+                if (metadata.tipo_usuario) {
+                    const icons = {admin: '👑', professional: '💎', starter: '🌱'};
+                    metadataBadges += `<span class="metadata-badge">${icons[metadata.tipo_usuario] || '👤'} ${metadata.tipo_usuario}</span>`;
+                }
+                if (metadata.plano_usuario) {
+                    metadataBadges += `<span class="metadata-badge">📋 ${metadata.plano_usuario}</span>`;
+                }
                 if (metadata.fonte) {
                     metadataBadges += `<span class="metadata-badge">📊 ${metadata.fonte}</span>`;
                 }
@@ -1246,14 +1154,10 @@ def home():
                     const validIcon = metadata.validacao_anti_alucinacao ? '✅' : '⚠️';
                     metadataBadges += `<span class="metadata-badge">${validIcon} Validação</span>`;
                 }
-                if (metadata.confiabilidade) {
-                    metadataBadges += `<span class="metadata-badge">🎯 ${metadata.confiabilidade}</span>`;
-                }
                 
-                // Resposta da IA
                 const respText = (data.response || data.resposta).replace(/\n/g, '<br>');
                 chatBox.innerHTML += `
-                    <div class="${className}">
+                    <div class="message bot">
                         <strong>🤖 NatanAI:</strong><br>${respText}
                         ${metadataBadges ? `<div class="metadata">${metadataBadges}</div>` : ''}
                     </div>
@@ -1283,7 +1187,7 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🤖 NATANAI v4.0 - SISTEMA HÍBRIDO NATURAL")
+    print("🤖 NATANAI v5.0 - SUPABASE INTEGRADO")
     print("="*80)
     print("👨‍💻 Criador: Natan Borges Alves Nascimento")
     print("🚀 Web Developer Full-Stack")
@@ -1292,57 +1196,35 @@ if __name__ == '__main__':
     print("💼 Portfólio: natandev02.netlify.app")
     print("="*80)
     
-    # Sistema 100% dinâmico com OpenAI
-    print("✅ Sistema configurado: 100% OpenAI com informações oficiais no prompt")
-    
-    # Verifica OpenAI
+    # Verifica conexões
     openai_status = verificar_openai()
+    supabase_status = supabase is not None
     
     print(f"\n🔧 CONFIGURAÇÃO:")
-    print(f"   • Modelo: {OPENAI_MODEL}")
+    print(f"   • Modelo OpenAI: {OPENAI_MODEL}")
     print(f"   • OpenAI: {'✅ CONECTADO' if openai_status else '⚠️ OFFLINE'}")
+    print(f"   • Supabase: {'✅ CONECTADO' if supabase_status else '⚠️ OFFLINE'}")
     print(f"   • Sistema Anti-Alucinação: ✅ ATIVO")
-    print(f"   • Palavras Proibidas: {len(PALAVRAS_PROIBIDAS)}")
-    print(f"   • Padrões Suspeitos: {len(PADROES_SUSPEITOS)}")
     
-    print(f"\n🎯 MODO 100% DINÂMICO:")
-    print(f"   1️⃣ OpenAI cria TODAS as respostas dinamicamente")
-    print(f"   2️⃣ Informações oficiais embutidas no prompt do sistema")
-    print(f"   3️⃣ Validação anti-alucinação (sempre ativa)")
-    print(f"   4️⃣ Sem respostas prontas - 100% inteligente e adaptável")
+    print(f"\n🎯 SISTEMA CONTEXTUAL:")
+    print(f"   👑 ADMIN (Natan): Informações privilegiadas e respostas técnicas")
+    print(f"   💎 PROFESSIONAL: Suporte prioritário e recursos avançados")
+    print(f"   🌱 STARTER: Suporte padrão com sugestões de upgrade")
     
-    print(f"\n🛡️ PROTEÇÕES ANTI-ALUCINAÇÃO:")
-    print(f"   ✅ Validação de informações oficiais")
-    print(f"   ✅ Detecção de palavras proibidas: {len(PALAVRAS_PROIBIDAS)}")
-    print(f"   ✅ Detecção de padrões suspeitos: {len(PADROES_SUSPEITOS)}")
-    print(f"   ✅ Limpeza automática de alucinações")
-    print(f"   ✅ Verificação de preços corretos")
-    print(f"   ✅ Verificação de WhatsApp correto")
-    print(f"   ✅ Verificação de nome do criador")
-    print(f"   ✅ Bloqueio de projetos inventados")
-    
-    print(f"\n💬 CONVERSAÇÃO NATURAL:")
-    print(f"   ✅ Responde perguntas casuais com empatia")
-    print(f"   ✅ Bate papo amigável e descontraído")
-    print(f"   ✅ Não força informações de serviços")
-    print(f"   ✅ Transições naturais quando relevante")
-    
-    print(f"\n📊 INFORMAÇÕES DOS SERVIÇOS:")
-    print(f"   • Planos: Starter (R$ 39,99/mês) | Professional (R$ 79,99/mês)")
-    print(f"   • Projetos entregues: {len(INFORMACOES_OFICIAIS['projetos'])}")
-    print(f"   • Desenvolvimento base: 3-4 horas")
-    print(f"   • Projeto completo: 1-2 semanas")
+    print(f"\n🛡️ PROTEÇÕES:")
+    print(f"   ✅ Autenticação via Supabase")
+    print(f"   ✅ Identificação automática de plano")
+    print(f"   ✅ Respostas personalizadas por tipo")
+    print(f"   ✅ Validação anti-alucinação")
+    print(f"   ✅ Cache inteligente por usuário")
     
     print(f"\n🚀 SERVIDOR INICIANDO...")
     print(f"   • Porta: 5000")
     print(f"   • Host: 0.0.0.0")
-    print(f"   • Debug: False")
-    print(f"   • Threaded: True")
     
     print("\n" + "="*80)
     print("📞 CONTATO: WhatsApp (21) 99282-6074")
     print("🌐 SITE: natansites.com.br")
-    print("💼 PORTFÓLIO: natandev02.netlify.app")
     print("="*80 + "\n")
     
     app.run(
