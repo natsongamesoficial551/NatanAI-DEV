@@ -3,12 +3,5 @@ flask-cors==4.0.0
 openai==1.12.0
 requests==2.31.0
 Werkzeug==3.0.1
-httpx==0.27.0
-httpcore==1.0.2
-supabase==2.10.0
-gotrue==2.10.0
-postgrest==0.18.0
-storage3==0.8.1
-realtime==2.0.5
-supafunc==0.5.1
 python-dotenv==1.0.0
+supabase==2.10.0
