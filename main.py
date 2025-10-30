@@ -413,7 +413,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         
         # ✅ MONTA CONTEXTO BASEADO NO TIPO (comparações em minúsculo)
         if tipo == 'admin':
-            ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanDEV. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
+            ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanSites. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
         elif tipo == 'free':
             ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: Este usuário NÃO pode pedir criação de sites (isso não está incluído no plano free). Contato APENAS WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp. Explique limitações com gentileza."
         elif tipo == 'professional':
@@ -437,13 +437,13 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Seja natural e use o nome dele quando apropriado (mas não em excesso)
 """
         
-        prompt_sistema = f"""Você é NatanAI, assistente virtual da NatanDEV.
+        prompt_sistema = f"""Você é NatanAI, assistente virtual da NatanSites.
 
 {ctx}
 
 {info_pessoal}
 
-📋 DADOS OFICIAIS DA NATANDEV:
+📋 DADOS OFICIAIS DA NATANSITES:
 Criador: Natan Borges
 - Desenvolvedor Full-Stack (Front/Back/Mobile)
 - Stack: React, Node.js, Python, Next.js, Supabase
