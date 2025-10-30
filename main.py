@@ -352,12 +352,14 @@ def processar_openai(pergunta, tipo_usuario, user_id):
     
     try:
         nome_usuario = tipo_usuario.get('nome_real', 'Cliente')
+        tipo = tipo_usuario.get('tipo', 'starter')  # ⬅️ PEGA O TIPO CORRETO
         
-        if tipo_usuario['tipo'] == 'admin':
+        # ✅ MONTA CONTEXTO BASEADO NO TIPO
+        if tipo == 'admin':
             ctx = f"🔴 ADMIN ({nome_usuario}): Acesso total. Respostas técnicas e dados internos."
-        elif tipo_usuario['tipo'] == 'free':
+        elif tipo == 'free':  # ⬅️ VERIFICA SE É 'free' E NÃO 'Free'
             ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: NÃO aceita pedidos de sites. Contato APENAS WhatsApp. Explique limitações educadamente."
-        elif tipo_usuario['tipo'] == 'professional':
+        elif tipo == 'professional':
             ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium. Suporte prioritário, explique recursos avançados."
         else:
             ctx = f"🌱 STARTER ({nome_usuario}): Cliente. Seja acolhedor e pessoal. Sugira upgrade se relevante."
