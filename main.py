@@ -50,10 +50,10 @@ HISTORICO_CONVERSAS = []
 historico_lock = threading.Lock()
 
 # 🧠 SISTEMA DE MEMÓRIA INTELIGENTE
-MEMORIA_USUARIOS = {}  # {user_id: {'mensagens': [], 'resumo': '', 'ultima_atualizacao': timestamp}}
+MEMORIA_USUARIOS = {}
 memoria_lock = threading.Lock()
 MAX_MENSAGENS_MEMORIA = 10
-INTERVALO_RESUMO = 5  # Gera resumo a cada 5 mensagens
+INTERVALO_RESUMO = 5
 
 # Auto-ping
 def auto_ping():
@@ -64,7 +64,7 @@ def auto_ping():
                 requests.get(f"{url}/health", timeout=10)
                 print(f"🏓 Ping OK: {datetime.now().strftime('%H:%M:%S')}")
             else:
-                requests.get("http://localhost:5000/health", timeout=5)
+                requests.get("https://natanai-dev.onrender.com/health", timeout=5)
         except:
             pass
         time.sleep(300)
@@ -121,6 +121,7 @@ def determinar_tipo_usuario(user_data, user_info=None):
     try:
         email = user_data.get('email', '')
         plan = user_data.get('plan', 'starter')
+        plan_type = user_data.get('plan_type', 'paid')
         nome = extrair_nome_usuario(user_info, user_data)
         
         if email == ADMIN_EMAIL:
@@ -129,6 +130,14 @@ def determinar_tipo_usuario(user_data, user_info=None):
                 'nome_display': 'Admin',
                 'plano': 'Admin',
                 'nome_real': 'Natan'
+            }
+        
+        if plan_type == 'free':
+            return {
+                'tipo': 'free',
+                'nome_display': 'Free Access',
+                'plano': 'Free (7 dias)',
+                'nome_real': nome
             }
         
         if plan == 'professional':
@@ -158,7 +167,6 @@ def determinar_tipo_usuario(user_data, user_info=None):
 # =============================================================================
 
 def obter_user_id(user_info, user_data):
-    """Obtém ID único do usuário para memória"""
     if user_info and hasattr(user_info, 'id'):
         return user_info.id
     if user_data and user_data.get('user_id'):
@@ -168,7 +176,6 @@ def obter_user_id(user_info, user_data):
     return 'anonimo'
 
 def inicializar_memoria_usuario(user_id):
-    """Inicializa memória para novo usuário"""
     with memoria_lock:
         if user_id not in MEMORIA_USUARIOS:
             MEMORIA_USUARIOS[user_id] = {
@@ -180,7 +187,6 @@ def inicializar_memoria_usuario(user_id):
             print(f"🧠 Memória inicializada para user: {user_id[:8]}...")
 
 def adicionar_mensagem_memoria(user_id, role, content):
-    """Adiciona mensagem à memória do usuário"""
     with memoria_lock:
         if user_id not in MEMORIA_USUARIOS:
             inicializar_memoria_usuario(user_id)
@@ -194,19 +200,16 @@ def adicionar_mensagem_memoria(user_id, role, content):
         memoria['contador_mensagens'] += 1
         memoria['ultima_atualizacao'] = datetime.now().isoformat()
         
-        # Mantém apenas últimas MAX_MENSAGENS_MEMORIA
         if len(memoria['mensagens']) > MAX_MENSAGENS_MEMORIA:
             memoria['mensagens'] = memoria['mensagens'][-MAX_MENSAGENS_MEMORIA:]
         
         print(f"💬 Memória atualizada: {user_id[:8]}... ({len(memoria['mensagens'])} msgs)")
 
 def gerar_resumo_conversa(mensagens):
-    """Gera resumo compacto das mensagens antigas (economia de tokens)"""
     if not client or not mensagens or len(mensagens) < 3:
         return ""
     
     try:
-        # Prepara texto das mensagens para resumir
         texto_conversa = "\n".join([
             f"{'Usuário' if m['role'] == 'user' else 'Assistente'}: {m['content']}"
             for m in mensagens
@@ -221,8 +224,8 @@ Resumo objetivo (máx 50 palavras):"""
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt_resumo}],
-            max_tokens=80,  # Resumo compacto
-            temperature=0.3  # Mais objetivo
+            max_tokens=80,
+            temperature=0.3
         )
         
         resumo = response.choices[0].message.content.strip()
@@ -234,7 +237,6 @@ Resumo objetivo (máx 50 palavras):"""
         return ""
 
 def obter_contexto_memoria(user_id):
-    """Obtém contexto otimizado da memória (resumo + mensagens recentes)"""
     with memoria_lock:
         if user_id not in MEMORIA_USUARIOS:
             return []
@@ -245,27 +247,22 @@ def obter_contexto_memoria(user_id):
         if not mensagens:
             return []
         
-        # Se tem menos de 5 mensagens, retorna todas
         if len(mensagens) <= 5:
             return [{'role': m['role'], 'content': m['content']} for m in mensagens]
         
-        # Se chegou no intervalo de resumo, gera resumo das antigas
         if memoria['contador_mensagens'] % INTERVALO_RESUMO == 0 and not memoria['resumo']:
-            msgs_antigas = mensagens[:-3]  # Todas menos as 3 últimas
+            msgs_antigas = mensagens[:-3]
             if msgs_antigas:
                 memoria['resumo'] = gerar_resumo_conversa(msgs_antigas)
         
-        # Monta contexto otimizado
         contexto = []
         
-        # Adiciona resumo se existir
         if memoria['resumo']:
             contexto.append({
                 'role': 'system',
                 'content': f"Contexto anterior: {memoria['resumo']}"
             })
         
-        # Adiciona últimas 3 mensagens completas
         mensagens_recentes = mensagens[-3:]
         for m in mensagens_recentes:
             contexto.append({
@@ -277,7 +274,6 @@ def obter_contexto_memoria(user_id):
         return contexto
 
 def limpar_memoria_antiga():
-    """Limpa memórias de usuários inativos (>1 hora)"""
     with memoria_lock:
         agora = datetime.now()
         usuarios_remover = []
@@ -286,7 +282,6 @@ def limpar_memoria_antiga():
             ultima_atualizacao = datetime.fromisoformat(memoria['ultima_atualizacao'])
             diferenca = (agora - ultima_atualizacao).total_seconds()
             
-            # Remove se inativo por mais de 1 hora
             if diferenca > 3600:
                 usuarios_remover.append(user_id)
         
@@ -294,10 +289,9 @@ def limpar_memoria_antiga():
             del MEMORIA_USUARIOS[user_id]
             print(f"🗑️ Memória limpa: {user_id[:8]}... (inativo)")
 
-# Thread de limpeza automática
 def thread_limpeza_memoria():
     while True:
-        time.sleep(1800)  # A cada 30 minutos
+        time.sleep(1800)
         limpar_memoria_antiga()
 
 threading.Thread(target=thread_limpeza_memoria, daemon=True).start()
@@ -339,7 +333,7 @@ def validar_resposta(resposta):
     return len(problemas) == 0, problemas
 
 # =============================================================================
-# 🤖 OPENAI - v6.2 COM MEMÓRIA INTELIGENTE
+# 🤖 OPENAI - v6.3 COM SUPORTE FREE ACCESS
 # =============================================================================
 
 def verificar_openai():
@@ -353,22 +347,21 @@ def verificar_openai():
         return False
 
 def processar_openai(pergunta, tipo_usuario, user_id):
-    """✅ v6.2 - COM MEMÓRIA INTELIGENTE (resumo + contexto)"""
     if not client or not verificar_openai():
         return None
     
     try:
         nome_usuario = tipo_usuario.get('nome_real', 'Cliente')
         
-        # 🔥 CONTEXTO POR TIPO DE USUÁRIO
         if tipo_usuario['tipo'] == 'admin':
             ctx = f"🔴 ADMIN ({nome_usuario}): Acesso total. Respostas técnicas e dados internos."
+        elif tipo_usuario['tipo'] == 'free':
+            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: NÃO aceita pedidos de sites. Contato APENAS WhatsApp. Explique limitações educadamente."
         elif tipo_usuario['tipo'] == 'professional':
             ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium. Suporte prioritário, explique recursos avançados."
         else:
             ctx = f"🌱 STARTER ({nome_usuario}): Cliente. Seja acolhedor e pessoal. Sugira upgrade se relevante."
         
-        # 🎯 PROMPT BASE COMPACTO
         prompt_sistema = f"""Você é NatanAI, assistente da NatanDEV.
 
 {ctx}
@@ -398,6 +391,13 @@ STARTER - R$39,99/mês + R$320
 PROFESSIONAL - R$79,99/mês + R$530 ⭐
 - Design avançado, ilimitado, animações, SEO avançado, APIs, domínio, 5 revisões, NatanAI
 
+🎁 FREE ACCESS - R$0,00 (7 DIAS)
+- Acesso GRATUITO por 7 dias à plataforma
+- Dashboard, IA, Suporte LIBERADOS
+- ❌ NÃO inclui criação de sites
+- Contato: APENAS WhatsApp (21) 99282-6074
+- Após 7 dias, acesso expira automaticamente
+
 🌐 PLATAFORMA: Dashboard, chat suporte, NatanAI, tema dark, estatísticas
 
 ⚡ REGRAS:
@@ -409,23 +409,27 @@ PROFESSIONAL - R$79,99/mês + R$530 ⭐
 6. Varie respostas similares
 7. Use apenas infos acima
 
+🎁 REGRAS ESPECIAIS FREE ACCESS:
+- Se FREE pedir site: "Desculpe, criação de sites NÃO está disponível no acesso grátis. Aproveite Dashboard, IA e Suporte! Para contratar site, fale no WhatsApp: (21) 99282-6074"
+- Contato FREE: APENAS WhatsApp - NUNCA mencione email ou página de Suporte
+- Explique que Free é TEMPORÁRIO (7 dias) e expira automaticamente
+- Incentive upgrade para plano pago para ter sites personalizados
+
+📞 CANAIS DE CONTATO:
+- CLIENTES PAGOS (Starter/Professional): WhatsApp (21) 99282-6074, Email natan@natandev.com OU página "Suporte" da plataforma
+- FREE ACCESS: APENAS WhatsApp (21) 99282-6074
+
 Responda de forma CONTEXTUAL e PESSOAL:"""
 
-        # 🧠 OBTÉM CONTEXTO DA MEMÓRIA
         contexto_memoria = obter_contexto_memoria(user_id)
         
-        # 📝 MONTA MENSAGENS PARA OPENAI
         messages = [
             {"role": "system", "content": prompt_sistema}
         ]
         
-        # Adiciona contexto da memória
         messages.extend(contexto_memoria)
-        
-        # Adiciona pergunta atual
         messages.append({"role": "user", "content": pergunta})
         
-        # 🚀 CHAMADA OTIMIZADA
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
@@ -435,17 +439,14 @@ Responda de forma CONTEXTUAL e PESSOAL:"""
         
         resposta = response.choices[0].message.content.strip()
         
-        # ✅ SALVA NA MEMÓRIA
         adicionar_mensagem_memoria(user_id, 'user', pergunta)
         adicionar_mensagem_memoria(user_id, 'assistant', resposta)
         
-        # ✅ Validação
         valida, problemas = validar_resposta(resposta)
         if not valida:
             print(f"⚠️ Validação falhou: {problemas}")
             return None
         
-        # 🎲 Frase motivacional (10%)
         if random.random() < 0.1:
             frases = [
                 "\n\n✨ Vibrações Positivas!",
@@ -462,31 +463,24 @@ Responda de forma CONTEXTUAL e PESSOAL:"""
         return None
 
 def gerar_resposta(pergunta, tipo_usuario, user_id):
-    """Sistema principal com memória inteligente"""
     try:
-        # ✅ Cache DESABILITADO para conversas (sempre usa memória)
-        # Mas mantém cache para perguntas únicas/isoladas
         palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp']
         usar_cache = any(palavra in pergunta.lower() for palavra in palavras_cache)
         
         cache_key = hashlib.md5(f"{pergunta.lower().strip()}_{tipo_usuario['tipo']}".encode()).hexdigest()
         
-        # Só usa cache se for pergunta isolada comum
         if usar_cache and cache_key in CACHE_RESPOSTAS:
-            # Mesmo com cache, salva na memória
             resposta_cache = CACHE_RESPOSTAS[cache_key]
             adicionar_mensagem_memoria(user_id, 'user', pergunta)
             adicionar_mensagem_memoria(user_id, 'assistant', resposta_cache)
             return resposta_cache, "cache"
         
-        # 🤖 OpenAI com memória
         resposta = processar_openai(pergunta, tipo_usuario, user_id)
         if resposta:
             if usar_cache:
                 CACHE_RESPOSTAS[cache_key] = resposta
             return resposta, f"openai_memoria_{tipo_usuario['tipo']}"
         
-        # 🔄 Fallback
         nome = tipo_usuario.get('nome_real', 'Cliente')
         return f"Desculpa {nome}, estou com dificuldades técnicas no momento. 😅\n\nPor favor, fale diretamente com o Natan no WhatsApp: (21) 99282-6074", "fallback"
         
@@ -507,7 +501,7 @@ def health():
     
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v6.2 MEMÓRIA INTELIGENTE",
+        "sistema": "NatanAI v6.3 FREE ACCESS SUPPORT",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
@@ -515,7 +509,7 @@ def health():
             "total_mensagens": total_mensagens,
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
         },
-        "features": ["memoria_inteligente", "resumo_automatico", "contexto_completo"],
+        "features": ["memoria_inteligente", "resumo_automatico", "contexto_completo", "free_access_support"],
         "economia": "~21k mensagens com $5"
     })
 
@@ -535,7 +529,6 @@ def chat():
         
         mensagem = mensagem.strip()
         
-        # ✅ AUTENTICAÇÃO E EXTRAÇÃO DE DADOS
         auth_header = request.headers.get('Authorization', '')
         user_data_req = data.get('user_data', {})
         
@@ -549,10 +542,13 @@ def chat():
                 user_full = {
                     'email': user_info.email,
                     'user_id': user_info.id,
-                    'plan': user_info.user_metadata.get('plan', 'starter') if user_info.user_metadata else 'starter'
+                    'plan': user_info.user_metadata.get('plan', 'starter') if user_info.user_metadata else 'starter',
+                    'plan_type': 'paid'
                 }
                 if dados:
                     user_full.update(dados)
+                    if dados.get('plan_type'):
+                        user_full['plan_type'] = dados['plan_type']
                 tipo_usuario = determinar_tipo_usuario(user_full, user_info)
         
         if not tipo_usuario:
@@ -566,20 +562,16 @@ def chat():
                     'nome_real': 'Cliente'
                 }
         
-        # 🆔 OBTÉM USER_ID PARA MEMÓRIA
         user_id = obter_user_id(user_info, user_data_req if user_data_req else {'email': tipo_usuario.get('nome_real', 'anonimo')})
         
-        # ✅ INICIALIZA MEMÓRIA SE NECESSÁRIO
         inicializar_memoria_usuario(user_id)
         
         nome_usuario = tipo_usuario.get('nome_real', 'Cliente')
         print(f"💬 [{datetime.now().strftime('%H:%M:%S')}] {nome_usuario} ({tipo_usuario['nome_display']}): {mensagem[:50]}...")
         
-        # ✅ GERA RESPOSTA COM MEMÓRIA
         resposta, fonte = gerar_resposta(mensagem, tipo_usuario, user_id)
         valida, _ = validar_resposta(resposta)
         
-        # Histórico geral
         with historico_lock:
             HISTORICO_CONVERSAS.append({
                 "timestamp": datetime.now().isoformat(),
@@ -592,7 +584,6 @@ def chat():
             if len(HISTORICO_CONVERSAS) > 1000:
                 HISTORICO_CONVERSAS = HISTORICO_CONVERSAS[-500:]
         
-        # 🧠 INFO DA MEMÓRIA
         with memoria_lock:
             memoria_info = {
                 "mensagens_na_memoria": len(MEMORIA_USUARIOS.get(user_id, {}).get('mensagens', [])),
@@ -604,13 +595,14 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v6.2 MEMÓRIA INTELIGENTE",
+                "sistema": "NatanAI v6.3 FREE ACCESS SUPPORT",
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
                 "nome_usuario": nome_usuario,
                 "validacao": valida,
                 "autenticado": user_info is not None,
-                "memoria": memoria_info
+                "memoria": memoria_info,
+                "is_free_access": tipo_usuario['tipo'] == 'free'
             }
         })
         
@@ -668,14 +660,13 @@ def estatisticas():
                 "conversas_com_contexto": com_memoria,
                 "taxa_uso_memoria": round((com_memoria / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
-            "sistema": "NatanAI v6.2 MEMÓRIA INTELIGENTE - ~21k msgs com $5"
+            "sistema": "NatanAI v6.3 FREE ACCESS SUPPORT - ~21k msgs com $5"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/limpar_memoria/<user_id>', methods=['POST'])
 def limpar_memoria_usuario(user_id):
-    """Endpoint para limpar memória de um usuário específico (admin)"""
     with memoria_lock:
         if user_id in MEMORIA_USUARIOS:
             del MEMORIA_USUARIOS[user_id]
@@ -687,7 +678,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v6.2"
+        "version": "v6.3"
     })
 
 @app.route('/', methods=['GET'])
@@ -696,7 +687,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v6.2 MEMÓRIA INTELIGENTE</title>
+        <title>NatanAI v6.3 FREE ACCESS SUPPORT</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -844,19 +835,19 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v6.2 MEMÓRIA INTELIGENTE</h1>
-                <p style="color: #666;">Agora ela lembra da conversa! 🚀</p>
-                <span class="badge new">NOVO: Memória Contextual</span>
+                <h1>🧠 NatanAI v6.3 FREE ACCESS SUPPORT</h1>
+                <p style="color: #666;">Agora com suporte a acesso grátis! 🎁</p>
+                <span class="badge new">NOVO: Reconhece Free Access</span>
                 <span class="badge">ECONOMIA: ~21k msgs com $5</span>
             </div>
             
             <div class="info-box">
-                <h3>✨ Novidades v6.2 - Sistema de Memória</h3>
-                <p>✅ Lembra das últimas 10 mensagens<br>
-                ✅ Gera resumo automático a cada 5 mensagens<br>
-                ✅ Contexto completo do portfólio mantido<br>
-                ✅ Reconhece você como Natan (admin)<br>
-                ✅ Tratamento personalizado por nome<br>
+                <h3>✨ Novidades v6.3 - Suporte a Free Access</h3>
+                <p>✅ Reconhece usuários com acesso grátis<br>
+                ✅ Explica limitações educadamente<br>
+                ✅ Direciona corretamente para WhatsApp<br>
+                ✅ Orienta sobre upgrade para planos pagos<br>
+                ✅ Sistema de memória mantido<br>
                 ✅ Custo otimizado: ~$0.00024/msg</p>
             </div>
 
@@ -867,24 +858,26 @@ def home():
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v6.2:</strong><br><br>
-                    Olá! Agora eu tenho MEMÓRIA INTELIGENTE! 🧠<br><br>
-                    Isso significa que eu lembro de tudo que conversamos:<br>
-                    • 💬 Suas últimas 10 mensagens<br>
-                    • 📝 Resumo automático do contexto anterior<br>
-                    • 👤 Seu nome e preferências<br>
-                    • 💎 Seu plano e necessidades<br><br>
-                    <strong>Teste fazendo perguntas sequenciais!</strong><br>
-                    Ex: "Me fale sobre React" → "E quanto custa?"<br><br>
+                    <strong>🤖 NatanAI v6.3:</strong><br><br>
+                    Olá! Agora eu tenho suporte completo a FREE ACCESS! 🎁<br><br>
+                    <strong>O que mudou:</strong><br>
+                    • 🎁 Reconheço usuários com acesso grátis<br>
+                    • 📋 Explico limitações educadamente<br>
+                    • 📞 Direciono corretamente para contato<br>
+                    • 💎 Incentivo upgrade quando relevante<br>
+                    • 🧠 Sistema de memória mantido<br><br>
+                    <strong>Teste com diferentes cenários!</strong><br>
+                    Ex: "Quero criar um site" (como Free)<br>
+                    Ex: "Como entro em contato?" (Free vs Pago)<br><br>
                     <strong>✨ Vibrações Positivas!</strong>
                 </div>
             </div>
             
             <div class="examples">
                 <button class="example-btn" onclick="testar('Me fale sobre React')">⚛️ React</button>
-                <button class="example-btn" onclick="testar('E quanto custa um projeto assim?')">💰 Preço</button>
-                <button class="example-btn" onclick="testar('Quais projetos o Natan já fez?')">📱 Portfólio</button>
-                <button class="example-btn" onclick="testar('Obrigado pela ajuda!')">🙏 Obrigado</button>
+                <button class="example-btn" onclick="testar('Quero criar um site')">🌐 Criar Site</button>
+                <button class="example-btn" onclick="testar('Como entro em contato?')">📞 Contato</button>
+                <button class="example-btn" onclick="testar('Qual meu plano?')">💎 Meu Plano</button>
             </div>
             
             <div class="input-area">
@@ -936,7 +929,8 @@ def home():
                         user_data: {
                             email: 'teste@exemplo.com',
                             plan: 'starter',
-                            user_name: 'Visitante'
+                            plan_type: 'free',
+                            user_name: 'Visitante Free'
                         }
                     })
                 });
@@ -945,13 +939,19 @@ def home():
                 const resp = (data.response || data.resposta).replace(/\\n/g, '<br>');
                 const nome = data.metadata?.nome_usuario || 'Teste';
                 const comMemoria = data.metadata?.fonte?.includes('memoria');
+                const isFree = data.metadata?.is_free_access || false;
                 
                 let memoriaTag = '';
                 if (comMemoria) {
                     memoriaTag = '<span class="memoria-indicator">🧠 COM CONTEXTO</span>';
                 }
                 
-                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI v6.2:</strong>${memoriaTag}<br><br>${resp}</div>`;
+                let freeTag = '';
+                if (isFree) {
+                    freeTag = '<span class="memoria-indicator" style="background: #10B981;">🎁 FREE ACCESS</span>';
+                }
+                
+                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI v6.3:</strong>${memoriaTag}${freeTag}<br><br>${resp}</div>`;
                 
                 atualizarStatusMemoria(data.metadata);
                 
@@ -962,7 +962,6 @@ def home():
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Carrega status inicial
         fetch('/health')
             .then(r => r.json())
             .then(data => {
@@ -977,18 +976,18 @@ def home():
     """
     return render_template_string(html)
 
-# =============================================================================
-# 🚀 INICIALIZAÇÃO
-# =============================================================================
-
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🧠 NATANAI v6.2 - MEMÓRIA INTELIGENTE COM RESUMO AUTOMÁTICO")
+    print("🧠 NATANAI v6.3 - FREE ACCESS SUPPORT")
     print("="*80)
-    print("✨ NOVO: Sistema de memória contextual (10 mensagens)")
-    print("📝 NOVO: Resumo automático a cada 5 mensagens")
+    print("🎁 NOVO: Reconhece usuários Free Access")
+    print("📋 NOVO: Explica limitações educadamente")
+    print("📞 NOVO: Direciona contato corretamente (WhatsApp para Free)")
+    print("💎 NOVO: Incentiva upgrade quando relevante")
+    print("✨ Sistema de memória contextual (10 mensagens)")
+    print("📝 Resumo automático a cada 5 mensagens")
     print("👑 Reconhece Natan como admin/criador")
-    print("📚 Contexto: Portfolio + Site + Nome + Memória")
+    print("📚 Contexto: Portfolio + Site + Nome + Memória + Plano")
     print("⚡ Economia: Tokens otimizados com resumo")
     print("💰 Custo: ~$0.00024/msg = 21.000 mensagens com $5")
     print("🎯 Conversas naturais e contextuais")
@@ -998,6 +997,7 @@ if __name__ == '__main__':
     
     print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
     print(f"Supabase: {'✅' if supabase else '⚠️'}")
-    print(f"Sistema de Memória: ✅ Ativo\n")
+    print(f"Sistema de Memória: ✅ Ativo")
+    print(f"Suporte Free Access: ✅ Ativo\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
