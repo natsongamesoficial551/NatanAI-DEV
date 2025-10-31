@@ -638,7 +638,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         if tipo == 'admin':
             ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanSites. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
         elif tipo == 'free':
-            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 1 ano com 100 mensagens/semana. IMPORTANTE: Este usuário não pode pedir criação de sites (não está incluído no free). Contato apenas WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
+            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 1 ano com 100 mensagens/semana. IMPORTANTE: Este usuário pode pedir criação de sites (está incluído no free). Contato apenas WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
         elif tipo == 'professional':
             ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. 5.000 mensagens/mês. Suporte prioritário, recursos avançados disponíveis. Direcione para página de Suporte para ajuda extra. Seja atencioso e destaque vantagens."
         else:  # starter
@@ -896,7 +896,7 @@ Plano Professional (Cadastro Plano Professional - R$530,00 setup)
    - Se perguntar quanto tempo demora: Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!
 
 🎁 REGRAS ESPECIAIS FREE ACCESS:
-- Se pedir site: Olá {nome_usuario}! A criação de sites não está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI (100 mensagens/semana) e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074
+- Se pedir site: Olá {nome_usuario}! A criação de sitesestá incluída no acesso grátis. O Free Access libera também Dashboard, NatanAI (100 mensagens/semana) e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074
 - Se perguntar sobre o plano starter ou o plano professional: Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!
 - Contato FREE: Somente WhatsApp (21) 99282-6074
 - Nunca diga abra a página de suporte para FREE
@@ -989,7 +989,7 @@ Pergunta complexa - Quais são os planos e o que cada um oferece?
 Resposta: A NatanSites oferece três opções de plano:
 
 PLANO FREE - Grátis (contrato 1 ano)
-Perfeito para testar a plataforma. Você tem acesso ao dashboard e 100 mensagens/semana com NatanAI, mas não inclui criação de sites comerciais ou hospedagem.
+Perfeito para testar a plataforma. Você tem acesso ao dashboard e 100 mensagens/semana com NatanAI, mas não inclui uso comerciais ou hospedagem nem dominio.
 
 PLANO STARTER - R$320 (setup) + R$39,99/mês
 Ideal para quem está começando. Você tem um site profissional com até 5 páginas, design responsivo, hospedagem por 1 ano, suporte técnico e 1.250 mensagens com NatanAI por mês.
