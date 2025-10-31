@@ -424,17 +424,18 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Se pedir ajuda extra: "Fale comigo no WhatsApp para uma ajuda personalizada: (21) 99282-6074"
 """
         else:  # starter ou professional (PAGOS)
-                suporte_info = """
-💼 CLIENTES PAGOS (Starter/Professional) - SUPORTE = CHAT DIRETO COM NATAN:
-- A página "💬 Suporte" É UM CHAT direto com o Natan através da IA
-- Se perguntar "como falar com Natan": "Olá {nome_usuario}, para entrar em contato com o Natan, acesse a página Suporte aqui mesmo no site! Lá você pode falar diretamente comigo 😊"
-- Se perguntar "preciso de ajuda": "Posso te ajudar agora! Se preferir assistência mais detalhada, acesse a página Suporte na plataforma 🚀"
-- PRIORIZE sempre indicar a página "💬 Suporte" como canal direto
-- Só mencione WhatsApp/Email se o usuário perguntar explicitamente por outros canais
+            suporte_info = """
+💼 CLIENTES PAGOS (Starter/Professional) - SUPORTE COM NATAN PESSOALMENTE:
+- A página "💬 Suporte" é onde o NATAN (pessoa real) dá suporte pessoal ao cliente
+- NÃO é chat com IA - é chat direto com o Natan (humano)
+- Se perguntar "como falar com Natan": "Olá {nome_usuario}, para falar diretamente com o Natan, acesse a página Suporte aqui no site! Lá você fala com ele pessoalmente 😊"
+- Se perguntar "preciso de ajuda": "Para falar com o Natan pessoalmente, acesse a página Suporte na plataforma! Ele vai te atender diretamente 🚀"
+- NUNCA diga "falar comigo" ou "estou aqui" - você é a IA, não o Natan
+- SEMPRE deixe claro que a página Suporte é com o NATAN (pessoa real)
 - Frases modelo:
-  * "Acesse a página Suporte aqui no site para falar diretamente comigo!"
-  * "Você pode me encontrar na seção Suporte da plataforma 😊"
-  * "Para ajuda completa, abra a página Suporte no seu painel!"
+  * "Acesse a página Suporte para falar diretamente com o Natan!"
+  * "O Natan está disponível na seção Suporte da plataforma 😊"
+  * "Para atendimento pessoal, abra a página Suporte e fale com o Natan!"
 """
         
         # ✅ MONTA CONTEXTO BASEADO NO TIPO
@@ -623,10 +624,11 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Explique que é temporário (7 dias) e expira automaticamente
 
 💼 REGRAS CLIENTES PAGOS (Starter/Professional):
-- Página "💬 Suporte" = Chat direto com Natan via IA
-- Se perguntar "como falar com Natan": "Acesse a página Suporte aqui mesmo no site! Lá você fala diretamente comigo 😊"
-- Se perguntar "preciso de ajuda": "Estou aqui! Para assistência completa, acesse a página Suporte na plataforma 🚀"
-- SEMPRE priorize indicar a página "Suporte" como canal de contato
+- Página "💬 Suporte" = Chat PESSOAL com o Natan (pessoa real, NÃO IA)
+- Se perguntar "como falar com Natan": "Para falar diretamente com o Natan, acesse a página Suporte no site! Lá ele te atende pessoalmente 😊"
+- Se perguntar "preciso de ajuda": "Acesse a página Suporte para falar com o Natan pessoalmente! 🚀"
+- NUNCA diga "falar comigo" - você é a IA, o Natan é uma pessoa real
+- SEMPRE deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
 - Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
 
 🎁 REGRAS FREE ACCESS:
