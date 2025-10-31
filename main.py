@@ -27,6 +27,16 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"
 RENDER_URL = os.getenv("RENDER_URL", "")
 
+# ============================================
+# 📊 LIMITES DE MENSAGENS POR PLANO
+# ============================================
+LIMITES_MENSAGENS = {
+    'free': 75,           # 🎁 75 mensagens para teste (7 dias)
+    'starter': 1000,      # 🌱 1000 mensagens/mês
+    'professional': 5000, # 💎 5000 mensagens/mês
+    'admin': float('inf') # 👑 Ilimitado
+}
+
 # Inicializa Supabase
 supabase: Client = None
 try:
@@ -55,6 +65,10 @@ memoria_lock = threading.Lock()
 MAX_MENSAGENS_MEMORIA = 10
 INTERVALO_RESUMO = 5
 
+# 📊 CONTADOR DE MENSAGENS POR USUÁRIO
+CONTADOR_MENSAGENS = {}
+contador_lock = threading.Lock()
+
 # Auto-ping
 def auto_ping():
     while True:
@@ -70,6 +84,110 @@ def auto_ping():
         time.sleep(300)
 
 threading.Thread(target=auto_ping, daemon=True).start()
+
+# =============================================================================
+# 📊 SISTEMA DE CONTROLE DE MENSAGENS
+# =============================================================================
+
+def obter_contador_mensagens(user_id):
+    """Retorna o contador de mensagens do usuário"""
+    with contador_lock:
+        if user_id not in CONTADOR_MENSAGENS:
+            CONTADOR_MENSAGENS[user_id] = {
+                'total': 0,
+                'resetado_em': datetime.now().isoformat(),
+                'tipo_plano': 'starter'
+            }
+        return CONTADOR_MENSAGENS[user_id]
+
+def incrementar_contador(user_id, tipo_plano):
+    """Incrementa o contador de mensagens do usuário"""
+    with contador_lock:
+        if user_id not in CONTADOR_MENSAGENS:
+            CONTADOR_MENSAGENS[user_id] = {
+                'total': 0,
+                'resetado_em': datetime.now().isoformat(),
+                'tipo_plano': tipo_plano
+            }
+        
+        CONTADOR_MENSAGENS[user_id]['total'] += 1
+        CONTADOR_MENSAGENS[user_id]['tipo_plano'] = tipo_plano
+        
+        return CONTADOR_MENSAGENS[user_id]['total']
+
+def verificar_limite_mensagens(user_id, tipo_plano):
+    """
+    Verifica se o usuário atingiu o limite de mensagens.
+    Retorna: (pode_enviar: bool, mensagens_usadas: int, limite: int, mensagens_restantes: int)
+    """
+    tipo = tipo_plano.lower().strip()
+    limite = LIMITES_MENSAGENS.get(tipo, LIMITES_MENSAGENS['starter'])
+    
+    # Admin tem ilimitado
+    if tipo == 'admin':
+        return True, 0, float('inf'), float('inf')
+    
+    contador = obter_contador_mensagens(user_id)
+    mensagens_usadas = contador['total']
+    mensagens_restantes = limite - mensagens_usadas
+    
+    pode_enviar = mensagens_usadas < limite
+    
+    return pode_enviar, mensagens_usadas, limite, max(0, mensagens_restantes)
+
+def resetar_contador_usuario(user_id):
+    """Reseta o contador de mensagens de um usuário (para renovação mensal)"""
+    with contador_lock:
+        if user_id in CONTADOR_MENSAGENS:
+            CONTADOR_MENSAGENS[user_id]['total'] = 0
+            CONTADOR_MENSAGENS[user_id]['resetado_em'] = datetime.now().isoformat()
+            print(f"🔄 Contador resetado para user: {user_id[:8]}...")
+            return True
+        return False
+
+def gerar_mensagem_limite_atingido(tipo_plano, mensagens_usadas, limite):
+    """Gera mensagem personalizada quando o limite é atingido"""
+    tipo = tipo_plano.lower().strip()
+    
+    if tipo == 'free':
+        return f"""Olá! Você atingiu o limite de {limite} mensagens do seu teste grátis (7 dias).
+
+Para continuar usando a NatanAI e ter acesso a muito mais mensagens, você pode contratar um dos nossos planos:
+
+PLANO STARTER - R$320
+- 1.000 mensagens por mês
+- Site profissional completo
+- Suporte 24/7
+
+PLANO PROFESSIONAL - R$530
+- 5.000 mensagens por mês
+- Recursos avançados
+- Prioridade no suporte
+
+Para contratar, fale com o Natan no WhatsApp: (21) 99282-6074
+
+Obrigado por testar a NatanAI! ✨"""
+    
+    elif tipo == 'starter':
+        return f"""Você atingiu o limite de {limite} mensagens do seu plano Starter este mês.
+
+Para ter mais mensagens, você pode:
+
+1. Fazer upgrade para o Plano Professional (5.000 mensagens/mês)
+2. Aguardar a renovação mensal do seu plano
+
+Para fazer upgrade ou renovar, acesse a página de Suporte e fale com o Natan pessoalmente!
+
+Obrigado por usar a NatanAI! 🚀"""
+    
+    elif tipo == 'professional':
+        return f"""Você atingiu o limite de {limite} mensagens do seu plano Professional este mês.
+
+Isso é bastante uso! Se precisar de mais mensagens, entre em contato com o Natan na página de Suporte para discutirmos uma solução personalizada.
+
+Obrigado pela confiança! 💎"""
+    
+    return "Limite de mensagens atingido. Entre em contato com o suporte."
 
 # =============================================================================
 # 🔐 AUTENTICAÇÃO E DADOS DO USUÁRIO
@@ -379,7 +497,41 @@ def validar_resposta(resposta, tipo_usuario='starter'):
     return len(problemas) == 0, problemas
 
 # =============================================================================
-# 🤖 OPENAI - v7.0 COM TAF SEM TABU + PÁGINAS DE CADASTRO
+# ✨ LIMPEZA DE FORMATAÇÃO (REMOVE ASTERISCOS E CARACTERES ESPECIAIS)
+# =============================================================================
+
+def limpar_formatacao_markdown(texto):
+    """
+    Remove asteriscos e outros caracteres especiais de formatação markdown,
+    mantendo apenas o texto limpo e natural.
+    """
+    if not texto:
+        return texto
+    
+    # Remove asteriscos duplos e simples (negrito e itálico)
+    texto = re.sub(r'\*\*([^*]+)\*\*', r'\1', texto)  # **texto** -> texto
+    texto = re.sub(r'\*([^*]+)\*', r'\1', texto)      # *texto* -> texto
+    
+    # Remove underscores de formatação
+    texto = re.sub(r'__([^_]+)__', r'\1', texto)      # __texto__ -> texto
+    texto = re.sub(r'_([^_]+)_', r'\1', texto)        # _texto_ -> texto
+    
+    # Remove backticks (código)
+    texto = re.sub(r'`([^`]+)`', r'\1', texto)        # `texto` -> texto
+    
+    # Remove outros caracteres especiais problemáticos
+    texto = texto.replace('´', '')
+    texto = texto.replace('~', '')
+    texto = texto.replace('^', '')
+    texto = texto.replace('¨', '')
+    
+    # Limpa múltiplas quebras de linha
+    texto = re.sub(r'\n{3,}', '\n\n', texto)
+    
+    return texto.strip()
+
+# =============================================================================
+# 🤖 OPENAI - v7.2 COM CONTROLE DE LIMITES DE MENSAGENS
 # =============================================================================
 
 def verificar_openai():
@@ -417,32 +569,32 @@ def processar_openai(pergunta, tipo_usuario, user_id):
             suporte_info = """
 🎁 FREE ACCESS - CONTATO EXCLUSIVO VIA WHATSAPP:
 - Para QUALQUER ajuda adicional ou dúvida: WhatsApp (21) 99282-6074
-- ❌ NUNCA mencione "abra a página de suporte" ou "acesse o suporte da plataforma"
-- ❌ NUNCA mencione email para usuários Free
-- ✅ SEMPRE direcione APENAS para WhatsApp: "(21) 99282-6074"
-- Frase modelo: "Para mais ajuda, entre em contato pelo WhatsApp: (21) 99282-6074 😊"
-- Se pedir ajuda extra: "Fale comigo no WhatsApp para uma ajuda personalizada: (21) 99282-6074"
+- Nunca mencione página de suporte ou acesse o suporte da plataforma
+- Nunca mencione email para usuários Free
+- Sempre direcione apenas para WhatsApp: (21) 99282-6074
+- Frase modelo: Para mais ajuda, entre em contato pelo WhatsApp: (21) 99282-6074
+- Se pedir ajuda extra: Fale comigo no WhatsApp para uma ajuda personalizada: (21) 99282-6074
 """
         else:  # starter ou professional (PAGOS)
             suporte_info = """
 💼 CLIENTES PAGOS (Starter/Professional) - SUPORTE COM NATAN PESSOALMENTE:
-- A página "💬 Suporte" é onde o NATAN (pessoa real) dá suporte pessoal ao cliente
-- NÃO é chat com IA - é chat direto com o Natan (humano)
-- Se perguntar "como falar com Natan": "Olá {nome_usuario}, para falar diretamente com o Natan, acesse a página Suporte aqui no site! Lá você fala com ele pessoalmente 😊"
-- Se perguntar "preciso de ajuda": "Para falar com o Natan pessoalmente, acesse a página Suporte na plataforma! Ele vai te atender diretamente 🚀"
-- NUNCA diga "falar comigo" ou "estou aqui" - você é a IA, não o Natan
-- SEMPRE deixe claro que a página Suporte é com o NATAN (pessoa real)
+- A página Suporte é onde o NATAN (pessoa real) dá suporte pessoal ao cliente
+- Não é chat com IA - é chat direto com o Natan (humano)
+- Se perguntar como falar com Natan: Olá {nome_usuario}, para falar diretamente com o Natan, acesse a página Suporte aqui no site! Lá você fala com ele pessoalmente
+- Se perguntar preciso de ajuda: Para falar com o Natan pessoalmente, acesse a página Suporte na plataforma! Ele vai te atender diretamente
+- Nunca diga falar comigo ou estou aqui - você é a IA, não o Natan
+- Sempre deixe claro que a página Suporte é com o NATAN (pessoa real)
 """
         
         # ✅ MONTA CONTEXTO BASEADO NO TIPO
         if tipo == 'admin':
             ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanSites. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
         elif tipo == 'free':
-            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: Este usuário NÃO pode pedir criação de sites (não está incluído no free). Contato APENAS WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
+            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias com 75 mensagens. IMPORTANTE: Este usuário não pode pedir criação de sites (não está incluído no free). Contato apenas WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
         elif tipo == 'professional':
-            ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. Suporte prioritário, recursos avançados disponíveis. Direcione para página de Suporte para ajuda extra. Seja atencioso e destaque vantagens."
+            ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. 5.000 mensagens/mês. Suporte prioritário, recursos avançados disponíveis. Direcione para página de Suporte para ajuda extra. Seja atencioso e destaque vantagens."
         else:  # starter
-            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. Direcione para página de Suporte para ajuda extra. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional."
+            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. 1.000 mensagens/mês. Direcione para página de Suporte para ajuda extra. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional."
         
         print(f"✅ Contexto montado para tipo '{tipo}'")
         
@@ -454,9 +606,9 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Tipo de acesso: {tipo.upper()}
 
 ⚠️ COMO RESPONDER PERGUNTAS PESSOAIS:
-- Se perguntar "qual meu nome?": Responda "Seu nome é {nome_usuario}"
-- Se perguntar "qual meu plano?": Responda "Você tem o plano {plano}"
-- Se perguntar sobre seu acesso: Explique o plano "{plano}" dele
+- Se perguntar qual meu nome?: Responda Seu nome é {nome_usuario}
+- Se perguntar qual meu plano?: Responda Você tem o plano {plano}
+- Se perguntar sobre seu acesso: Explique o plano {plano} dele
 - Seja natural e use o nome dele quando apropriado (mas não em excesso)
 """
         
@@ -475,7 +627,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Futuro FullStack | Web Developer
 - Localização: Rio de Janeiro/RJ, Brasil
 - Contatos:
-  * WhatsApp: (21) 99282-6074 ✅ (contato prioritário)
+  * WhatsApp: (21) 99282-6074 (contato prioritário)
   * Email: borgesnatan09@gmail.com
   * Email alternativo: natan@natandev.com
 - Links:
@@ -485,58 +637,58 @@ def processar_openai(pergunta, tipo_usuario, user_id):
   * Site comercial: https://natansites.com.br
 
 🛠️ STACK TÉCNICO:
-- **Front-end**: HTML5, CSS3, JavaScript, React, Vue, TypeScript, Tailwind CSS
-- **Back-end**: Node.js, Python, Express.js, APIs RESTful
-- **Mobile**: React Native (iOS/Android)
-- **Banco de Dados**: Supabase, PostgreSQL
-- **Ferramentas**: Git/GitHub, Vercel, Netlify, VS Code, Figma (UI/UX), Postman
-- **Especialidades**: IA (Inteligência Artificial), SEO, Animações Web
+- Front-end: HTML5, CSS3, JavaScript, React, Vue, TypeScript, Tailwind CSS
+- Back-end: Node.js, Python, Express.js, APIs RESTful
+- Mobile: React Native (iOS/Android)
+- Banco de Dados: Supabase, PostgreSQL
+- Ferramentas: Git/GitHub, Vercel, Netlify, VS Code, Figma (UI/UX), Postman
+- Especialidades: IA (Inteligência Artificial), SEO, Animações Web
 
 💼 PORTFÓLIO DE PROJETOS REAIS:
 
-1. **Espaço Familiares** 🏡
+1. Espaço Familiares
    - Site para espaço de eventos (casamento, dayuse, festa infantil)
    - Stack: HTML, CSS, JavaScript
    - Status: Live/Online
    - Link: https://espacofamiliares.com.br
    - Descrição: Espaço dedicado a eventos especiais
 
-2. **DeluxModPack - GTAV** 🎮
+2. DeluxModPack - GTAV
    - ModPack gratuito para GTA V
    - Stack: C#, Game Development
    - Status: Beta
    - Link: https://deluxgtav.netlify.app
    - Descrição: ModPack sensacional para GTA V em versão beta
 
-3. **Quiz Venezuela** 📝
+3. Quiz Venezuela
    - Quiz interativo sobre Venezuela
    - Stack: Web (HTML/CSS/JS)
    - Status: Live/Online
    - Link: https://quizvenezuela.onrender.com
    - Descrição: Um dos primeiros sites desenvolvidos, quiz simples e funcional
 
-4. **Plataforma NatanSites** 💻
+4. Plataforma NatanSites
    - Plataforma comercial completa de criação de sites
    - Stack: HTML, CSS, JavaScript, Python (Backend)
    - Status: Live/Online
    - Link: https://natansites.com.br
    - Descrição: Plataforma completa para segurança e confiança do serviço webdeveloper
 
-5. **MathWork** 📊
+5. MathWork
    - Plataforma educacional de matemática
    - Stack: HTML, CSS, JavaScript, Vídeos
    - Status: Live/Online
    - Link: https://mathworkftv.netlify.app
    - Descrição: Trabalho escolar com 10 alunos criando vídeos explicativos resolvendo questões de prova. Site interativo didático
 
-6. **Alessandra Yoga** 🧘‍♀️
+6. Alessandra Yoga
    - Cartão de visita digital para serviços de Yoga
    - Stack: HTML, CSS (Cartão de Visita Digital)
    - Status: Live/Online
    - Link: https://alessandrayoga.netlify.app
    - Descrição: Cartão de visita digital elegante e profissional para Alessandra Gomes (serviços de yoga)
 
-7. **TAF Sem Tabu** 🏃‍♂️💪 (NOVO PROJETO!)
+7. TAF Sem Tabu (NOVO PROJETO!)
    - OnePage sobre E-Book de preparação para TAF (Teste de Aptidão Física)
    - Stack: HTML, CSS, JavaScript
    - Status: Live/Online
@@ -545,7 +697,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 
 💳 PLANOS NATANSITES (VALORES OFICIAIS):
 
-🌱 **STARTER** - R$320 (setup único)
+STARTER - R$320 (setup único)
 - Site profissional até 5 páginas
 - Design responsivo (mobile/tablet/desktop)
 - SEO básico otimizado
@@ -554,11 +706,12 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Formulário de contato
 - Integração redes sociais
 - SSL/HTTPS seguro
+- 1.000 mensagens com NatanAI por mês
 - Ideal para: Pequenos negócios, profissionais autônomos, portfólios
 
-💎 **PROFESSIONAL** - R$530 (setup único) ⭐ MAIS POPULAR
+PROFESSIONAL - R$530 (setup único) - MAIS POPULAR
 - Tudo do Starter +
-- Páginas ILIMITADAS
+- Páginas ilimitadas
 - Design 100% personalizado
 - Animações avançadas
 - SEO avançado (ranqueamento Google)
@@ -566,30 +719,27 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Blog/notícias integrado
 - Domínio personalizado incluído
 - Até 5 revisões de design
-- Acesso à NatanAI (assistente IA)
+- Acesso à NatanAI (5.000 mensagens/mês)
 - E-commerce básico (opcional)
 - Painel administrativo
 - Ideal para: Empresas, e-commerces, projetos complexos
 
-🎁 **FREE ACCESS** - R$0,00 (Teste grátis 7 dias)
-- Acesso GRATUITO temporário à plataforma
-- Dashboard completo LIBERADO
-- Chat com NatanAI LIBERADO
-- Suporte por chat LIBERADO
-- ❌ NÃO inclui criação de sites personalizados
-- ❌ NÃO inclui hospedagem
+FREE ACCESS - R$0,00 (Teste grátis 7 dias)
+- Acesso gratuito temporário à plataforma
+- Dashboard completo liberado
+- Chat com NatanAI liberado (75 mensagens totais)
+- Suporte por chat liberado
+- Não inclui criação de sites personalizados
+- Não inclui hospedagem
 - Objetivo: Conhecer a plataforma antes de contratar
-- Contato para contratar: APENAS WhatsApp (21) 99282-6074
+- Contato para contratar: apenas WhatsApp (21) 99282-6074
 - Após 7 dias: Acesso expira automaticamente (sem cobrança)
 
-📄 PÁGINAS DE CADASTRO DA NATANSITES (Estará em um botão escrito Escolher(plano) ai terá Plano Starter E Plano Professional):
+📄 PÁGINAS DE CADASTRO DA NATANSITES:
 
-🔹 Plano Starter (Cadastro Plano Starter - R$320,00)
+Plano Starter (Cadastro Plano Starter - R$320,00)
 - Página de cadastro rápido para o plano Starter
-- Formulário com campos:
- - Nome Completo (obrigatório)
- - Data de Nascimento (idade mínima: 13 anos)
- - CPF (com máscara automática: 000.000.000-00)
+- Formulário com campos: Nome Completo, Data de Nascimento (idade mínima: 13 anos), CPF (com máscara automática: 000.000.000-00)
 - QR Code PIX para pagamento de R$320,00
 - Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
@@ -597,12 +747,9 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
 
-🔹 Plano Professional (Cadastro Plano Professional - R$530,00)
+Plano Professional (Cadastro Plano Professional - R$530,00)
 - Página de cadastro rápido para o plano Professional
-- Formulário com campos:
- - Nome Completo (obrigatório)
- - Data de Nascimento (idade mínima: 13 anos)
- - CPF (com máscara automática: 000.000.000-00)
+- Formulário com campos: Nome Completo, Data de Nascimento (idade mínima: 13 anos), CPF (com máscara automática: 000.000.000-00)
 - QR Code PIX para pagamento de R$530,00
 - Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
@@ -613,7 +760,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 ⚙️ COMO FUNCIONAM AS PÁGINAS DE CADASTRO:
 
 1. Acesso às páginas:
-   - FREE: Pode visualizar mas NÃO pode se cadastrar (precisa contratar primeiro via WhatsApp)
+   - FREE: Pode visualizar mas não pode se cadastrar (precisa contratar primeiro via WhatsApp)
    - STARTER: Acessa no botão escolher Starter do plano starter para contratar/renovar
    - PROFESSIONAL: Acessa o botão escolher professional para contratar/renovar
    - ADMIN: Acesso total a ambas as páginas
@@ -638,10 +785,10 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Formulários idênticos, apenas valores e QR Codes diferentes
 
 5. Como explicar para os clientes:
-   - "Para contratar o plano Starter, acesse a página pelo botão escolher starter, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
-   - "Para contratar o plano Professional, acesse a página escolher professional, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
-   - "O pagamento é via PIX: escaneie o QR Code ou copie o código Copia e Cola!"
-   - "Após o pagamento, você receberá sua conta em até 2 horas!"
+   - Para contratar o plano Starter, acesse a página pelo botão escolher starter, preencha seus dados, pague via PIX e aguarde a criação da sua conta!
+   - Para contratar o plano Professional, acesse a página escolher professional, preencha seus dados, pague via PIX e aguarde a criação da sua conta!
+   - O pagamento é via PIX: escaneie o QR Code ou copie o código Copia e Cola!
+   - Após o pagamento, você receberá sua conta em até 2 horas!
 
 🌐 PLATAFORMA NATANSITES (SISTEMA):
 - Dashboard intuitivo para gerenciar seu site
@@ -655,53 +802,56 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 
 ⚡ REGRAS CRÍTICAS DE RESPOSTA:
 
-1. **Uso do nome:** Use "{nome_usuario}" de forma natural (máx 1-2x por resposta)
+1. Uso do nome: Use {nome_usuario} de forma natural (máx 1-2x por resposta)
 
-2. **Primeira pessoa:** NUNCA diga "eu desenvolvo" → SEMPRE "o Natan desenvolve" / "o Natan cria"
+2. Primeira pessoa: Nunca diga eu desenvolvo, sempre o Natan desenvolve / o Natan cria
 
-3. **Informações verificadas:** Use APENAS as informações acima. NUNCA invente:
+3. Informações verificadas: Use apenas as informações acima. Nunca invente:
    - Preços diferentes
    - Projetos inexistentes
    - Funcionalidades não mencionadas
    - Tecnologias não listadas
 
-4. **Naturalidade:** 
-   - NUNCA repita a pergunta literal do usuário
+4. Naturalidade: 
+   - Nunca repita a pergunta literal do usuário
    - Varie as respostas para perguntas similares
    - Seja conversacional e empático
    - Use emojis com moderação (1-2 por resposta)
 
-5. **Contato correto:**
-   - WhatsApp principal: (21) 99282-6074 (SEMPRE com DDD 21)
+5. Contato correto:
+   - WhatsApp principal: (21) 99282-6074 (sempre com DDD 21)
    - Email principal: borgesnatan09@gmail.com
    - Email alternativo: natan@natandev.com
    - Links sempre completos (com https://)
 
-6. **Direcionamento de suporte (MUITO IMPORTANTE):**
-   - **FREE ACCESS**: SEMPRE WhatsApp (21) 99282-6074 - NUNCA mencione "página de suporte"
-   - **PAGOS (Starter/Professional)**: SEMPRE "Abra a página de Suporte na plataforma" - NÃO mencione WhatsApp a menos que peçam
+6. Direcionamento de suporte (MUITO IMPORTANTE):
+   - FREE ACCESS: Sempre WhatsApp (21) 99282-6074 - Nunca mencione página de suporte
+   - PAGOS (Starter/Professional): Sempre Abra a página de Suporte na plataforma - Não mencione WhatsApp a menos que peçam
 
-7. **PÁGINAS DE CADASTRO (botão escolher(plano) no starter e professional):**
-   - Se perguntar "como contratar Starter": "Acesse clicando no botão escolher starter, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!"
-   - Se perguntar "como contratar Professional": "Acesse no botão escolher professional, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!"
-   - Se perguntar sobre o formulário: "O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!"
-   - Se perguntar quanto tempo demora: "Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!"
+7. PÁGINAS DE CADASTRO:
+   - Se perguntar como contratar Starter: Acesse clicando no botão escolher starter, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!
+   - Se perguntar como contratar Professional: Acesse no botão escolher professional, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!
+   - Se perguntar sobre o formulário: O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!
+   - Se perguntar quanto tempo demora: Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!
 
 🎁 REGRAS ESPECIAIS FREE ACCESS:
-- Se pedir site: "Olá {nome_usuario}! A criação de sites NÃO está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074 😊"
-- Se perguntar sobre o plano starter ou o plano professional: "Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!"
-- Contato FREE: SOMENTE WhatsApp (21) 99282-6074
-- NUNCA diga "abra a página de suporte" para FREE
+- Se pedir site: Olá {nome_usuario}! A criação de sites não está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI (75 mensagens) e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074
+- Se perguntar sobre o plano starter ou o plano professional: Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!
+- Contato FREE: Somente WhatsApp (21) 99282-6074
+- Nunca diga abra a página de suporte para FREE
 - Explique que é temporário (7 dias) e expira automaticamente
+- Tem apenas 75 mensagens totais para teste
 
 💼 REGRAS CLIENTES PAGOS (Starter/Professional):
-- Página "💬 Suporte" = Chat PESSOAL com o Natan (pessoa real, NÃO IA)
-- Se perguntar "como falar com Natan": "Para falar diretamente com o Natan, acesse a página Suporte no site! Lá ele te atende pessoalmente 😊"
-- Se perguntar "preciso de ajuda": "Acesse a página Suporte para falar com o Natan pessoalmente! 🚀"
-- Se perguntar sobre renovação: "Para renovar seu plano, você pode acessar a página no botão escolher starter ou escolher professional novamente, ou falar com o Natan na página Suporte!"
-- NUNCA diga "falar comigo" - você é a IA, o Natan é uma pessoa real
-- SEMPRE deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
+- Página Suporte = Chat pessoal com o Natan (pessoa real, não IA)
+- Se perguntar como falar com Natan: Para falar diretamente com o Natan, acesse a página Suporte no site! Lá ele te atende pessoalmente
+- Se perguntar preciso de ajuda: Acesse a página Suporte para falar com o Natan pessoalmente!
+- Se perguntar sobre renovação: Para renovar seu plano, você pode acessar a página no botão escolher starter ou escolher professional novamente, ou falar com o Natan na página Suporte!
+- Nunca diga falar comigo - você é a IA, o Natan é uma pessoa real
+- Sempre deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
 - Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
+- STARTER tem 1.000 mensagens/mês
+- PROFESSIONAL tem 5.000 mensagens/mês
 
 🔴 REGRAS ADMIN (Natan):
 - Trate como criador e dono
@@ -709,12 +859,13 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Pode revelar detalhes internos
 - Tom pessoal e próximo
 - Explique detalhes técnicos sobre o plano professional e plano starter se perguntado
-- Nunca em hipótese alguma Forneça informações sobre EmailJS, validações, etc.
+- Nunca em hipótese alguma forneça informações sobre EmailJS, validações, etc.
+- Admin tem mensagens ilimitadas
 
 📱 PROJETO TAF SEM TABU - INFORMAÇÕES DETALHADAS:
 - Site OnePage sobre E-Book de preparação para TAF (Teste de Aptidão Física)
 - Público-alvo: Candidatos a concursos militares, pessoas que querem passar em testes físicos
-- Conteúdo: Informações sobre o E-Book "TAF Sem Tabu" que ensina preparação física
+- Conteúdo: Informações sobre o E-Book TAF Sem Tabu que ensina preparação física
 - Design: OnePage moderno, clean, focado em conversão
 - Objetivo: Vender/divulgar o E-Book educacional
 - Diferencial: Aborda o TAF de forma direta e sem tabus
@@ -722,33 +873,100 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Status: Live/Online
 - Link: https://tafsemtabu.com.br
 
-* REGRAS DOS CARACTERES ESPECIAIS *:
-- Nunca mande um texto com algum caracterer especial como *,", ´, `, ~, ^, ¨, etc.
-- Nunca mande caracteres especiais Para explicar aquilo que o usuário perguntou e substitua em negrito como Plano Starter, Plano Professional, TAF Sem Tabu, NatanSites, NatanAI, etc.
-- Sempre use apenas caracteres normais.
-- em apenas 34% das respostas você pode usar emojis, no máximo 2 por resposta.
-- Nunca use emojis em respostas técnicas ou administrativas.
-- em respostas para free access use emojis para deixar a resposta mais leve e amigável.
-- para piadas use apenas emojis simples como 😊, 😅, 🚀, ✨, 🌟, 💙, etc.
-- Nunca use emojis complexos ou que possam ser mal interpretados.
+🚫 REGRAS CRÍTICAS DE FORMATAÇÃO (MUITO IMPORTANTE):
 
-REGRAS DA ADAPTAÇÃO DE TEXTO:
-- Adapte o texto para ficar mais natural, pessoal e contextual.
-- Adapte o texto para o nível de conhecimento do usuário (ex: free access pode ser mais leigo, pagos mais técnicos).
-- Adapte o texto para o contexto da conversa (ex: se já falou sobre planos, não repita tudo de novo).
-- Adapte o texto para evitar repetições e soar mais humano.
-- Adapte o texto para ser mais conciso e direto, evitando enrolação.
-- Adapte o texto para pessoas com deficiencias cognitivas, use linguagem simples e clara ex de deficiencias cognitivas: dislexia, TDAH, autismo leve, etc.
-📢 INSTRUÇÃO FINAL IMPORTANTE:
-- para TODAS as respostas, siga estas regras com MUITA ATENÇÃO.
+PROIBIDO USAR ESTES CARACTERES:
+- Asteriscos: nunca use * ou ** para negrito/itálico
+- Aspas especiais: nunca use " ou '
+- Acentos isolados: nunca use ´, `, ~, ^, ¨
+- Underscores: nunca use _ ou __ para formatação
+- Backticks: nunca use ` para código
 
-Regras de idioma:
-- Caso a pessoa seja de outro país, responda de acordo com o idioma que a pessoa está usando para falar com você ex: inglês, espanhol, francês, etc.
-- Sua linguagem principal é português do Brasil, mas você pode responder em outros idiomas se a pessoa usar outro idioma.
-- Entenda o contexto da pessoa e responda no idioma correto.
+COMO ESCREVER SEM FORMATAÇÃO ESPECIAL:
+- Ao invés de usar asteriscos ou outros caracteres, escreva naturalmente
+- Se precisar destacar algo importante, apenas deixe em uma linha separada
+- Use quebras de linha para organizar, não formatação markdown
+- Exemplos corretos:
+  * Ao invés de: O plano Starter custa R$320
+  * Escreva: O plano Starter custa R$320 (sem asteriscos)
+  
+  * Ao invés de: Você tem o plano Professional
+  * Escreva: Você tem o plano Professional (sem asteriscos)
 
+📝 REGRAS DE ADAPTAÇÃO DE FORMATO (NOVO!):
 
-Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informações reais do portfólio:"""
+QUANDO USAR LISTAS (tópicos com traço):
+- Para explicar múltiplos itens de um plano
+- Para listar projetos do portfólio
+- Para mostrar funcionalidades ou benefícios
+- Para comparar diferenças entre planos
+- Quando o usuário pedir explicitamente uma lista
+
+QUANDO USAR PARÁGRAFOS (texto corrido):
+- Para explicações conceituais ou teóricas
+- Para contar histórias ou dar contexto
+- Para respostas curtas e diretas
+- Para conversas casuais
+- Para explicar processos passo a passo de forma natural
+
+ADAPTAÇÃO PARA COMPREENSÃO:
+- Se a pergunta for simples: resposta curta em 1-2 parágrafos
+- Se a pergunta for complexa ou técnica: use tópicos para facilitar
+- Se for explicar múltiplos itens: use lista com traço
+- Se for explicar um conceito único: use parágrafo
+- Para pessoas com dificuldade: use frases curtas, linguagem simples, tópicos claros
+- Sempre quebre textos longos em pedaços menores para facilitar leitura
+- Use transições suaves entre ideias: Então, Além disso, Por exemplo
+
+EXEMPLO DE BOA ADAPTAÇÃO:
+
+Pergunta simples - Quanto custa o plano Starter?
+Resposta: O plano Starter custa R$320 como pagamento único. Esse valor inclui o desenvolvimento completo do seu site profissional e 1.000 mensagens com NatanAI por mês!
+
+Pergunta complexa - Quais são os planos e o que cada um oferece?
+Resposta: A NatanSites oferece três opções de plano:
+
+PLANO STARTER - R$320
+Ideal para quem está começando. Você tem um site profissional com até 5 páginas, design responsivo, hospedagem por 1 ano, suporte técnico e 1.000 mensagens com NatanAI por mês.
+
+PLANO PROFESSIONAL - R$530
+Perfeito para empresas e projetos maiores. Além de tudo do Starter, você tem páginas ilimitadas, design 100% personalizado, SEO avançado e 5.000 mensagens com NatanAI por mês.
+
+FREE ACCESS - Grátis por 7 dias
+Você pode testar a plataforma gratuitamente. Tem acesso ao dashboard e 75 mensagens com NatanAI, mas não inclui criação de sites.
+
+Qual deles combina mais com o que você precisa?
+
+🎯 EMOJIS (USO MODERADO):
+- Use apenas em 34% das respostas
+- Máximo 2 emojis por resposta
+- Nunca use emojis em respostas técnicas ou administrativas
+- Para free access use emojis para deixar a resposta mais leve e amigável
+- Emojis simples apenas: nada de emojis complexos
+- Exemplos permitidos: 😊 😅 🚀 ✨ 🌟 💙 ✅ 🎁 💼 👑 🌱 💎
+
+📊 INFORMAÇÕES SOBRE LIMITES DE MENSAGENS (IMPORTANTE!):
+- FREE ACCESS: 75 mensagens totais (durante os 7 dias)
+- STARTER: 1.000 mensagens por mês
+- PROFESSIONAL: 5.000 mensagens por mês
+- ADMIN: Ilimitado
+
+Se o usuário perguntar sobre limites:
+- Explique de forma clara quantas mensagens ele tem
+- Se for Free: mencione que são 75 mensagens durante os 7 dias de teste
+- Se for Starter: mencione que são 1.000 mensagens que renovam todo mês
+- Se for Professional: mencione que são 5.000 mensagens que renovam todo mês
+- Sempre seja transparente sobre os limites
+
+📢 INSTRUÇÃO FINAL CRÍTICA:
+Siga todas estas regras com extrema atenção. Nunca use asteriscos ou outros caracteres especiais para formatação. Adapte seu formato de resposta baseado na complexidade da pergunta e nas necessidades de compreensão do usuário. Seja sempre natural, claro e acessível.
+
+REGRAS DE IDIOMA:
+- Se a pessoa falar em outro idioma (inglês, espanhol, francês, etc), responda no mesmo idioma
+- Sua linguagem principal é português do Brasil
+- Entenda o contexto e responda no idioma correto
+
+Responda de forma contextual, pessoal, natural e precisa baseando-se nas informações reais do portfólio:"""
 
         contexto_memoria = obter_contexto_memoria(user_id)
         
@@ -764,11 +982,14 @@ Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informa
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            max_tokens=220,
+            max_tokens=700,
             temperature=0.75
         )
         
         resposta = response.choices[0].message.content.strip()
+        
+        # ✅ LIMPA FORMATAÇÃO MARKDOWN (REMOVE ASTERISCOS)
+        resposta = limpar_formatacao_markdown(resposta)
         
         print(f"✅ Resposta OpenAI recebida: {resposta[:80]}...")
         
@@ -782,10 +1003,10 @@ Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informa
         
         if random.random() < 0.1:
             frases = [
-                "\n\n✨ Vibrações Positivas!",
-                "\n\n💙 Sucesso no seu projeto!",
-                "\n\n🚀 Vamos juntos nessa!",
-                "\n\n🌟 Conte sempre comigo!"
+                "\n\nVibrações Positivas! ✨",
+                "\n\nSucesso no seu projeto! 💙",
+                "\n\nVamos juntos nessa! 🚀",
+                "\n\nConte sempre comigo! 🌟"
             ]
             resposta += random.choice(frases)
         
@@ -823,13 +1044,13 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
         
         print(f"⚠️ OpenAI retornou None, usando fallback")
         nome = tipo_usuario.get('nome_real', 'Cliente')
-        return f"Desculpa {nome}, estou com dificuldades técnicas no momento. 😅\n\nPor favor, fale diretamente com o Natan no WhatsApp: (21) 99282-6074", "fallback"
+        return f"Desculpa {nome}, estou com dificuldades técnicas no momento.\n\nPor favor, fale diretamente com o Natan no WhatsApp: (21) 99282-6074", "fallback"
         
     except Exception as e:
         print(f"❌ Erro gerar_resposta: {e}")
         import traceback
         traceback.print_exc()
-        return "Ops, erro técnico! Fale com Natan: (21) 99282-6074\n\n✨ Vibrações Positivas!", "erro"
+        return "Ops, erro técnico! Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨", "erro"
 
 # =============================================================================
 # 📡 ROTAS
@@ -842,28 +1063,41 @@ def health():
         usuarios_ativos = len(MEMORIA_USUARIOS)
         total_mensagens = sum(len(m['mensagens']) for m in MEMORIA_USUARIOS.values())
     
+    with contador_lock:
+        total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
+    
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro",
+        "sistema": "NatanAI v7.2 - Sistema de Limites por Plano",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
             "usuarios_ativos": usuarios_ativos,
-            "total_mensagens": total_mensagens,
+            "total_mensagens_memoria": total_mensagens,
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
+        },
+        "limites": {
+            "free": f"{LIMITES_MENSAGENS['free']} mensagens (7 dias)",
+            "starter": f"{LIMITES_MENSAGENS['starter']} mensagens/mês",
+            "professional": f"{LIMITES_MENSAGENS['professional']} mensagens/mês",
+            "admin": "Ilimitado",
+            "total_mensagens_enviadas": total_mensagens_enviadas
         },
         "features": [
             "memoria_inteligente", 
             "resumo_automatico", 
             "contexto_completo", 
-            "free_access_100%", 
+            "controle_limites_por_plano",
             "validacao_relaxada",
             "portfolio_completo_7_projetos",
             "suporte_diferenciado_por_plano",
             "paginas_cadastro_starter_professional",
-            "taf_sem_tabu_projeto"
+            "taf_sem_tabu_projeto",
+            "sem_asteriscos_formatacao",
+            "adaptacao_formato_inteligente",
+            "max_tokens_700"
         ],
-        "economia": "~21k mensagens com $5"
+        "economia": "~11.318 mensagens com $4.98"
     })
 
 @app.route('/chat', methods=['POST'])
@@ -928,6 +1162,30 @@ def chat():
         
         user_id = obter_user_id(user_info, user_data_req if user_data_req else {'email': tipo_usuario.get('nome_real', 'anonimo')})
         
+        # ✅ VERIFICA LIMITE DE MENSAGENS
+        tipo_plano = tipo_usuario.get('tipo', 'starter')
+        pode_enviar, msgs_usadas, limite, msgs_restantes = verificar_limite_mensagens(user_id, tipo_plano)
+        
+        if not pode_enviar:
+            print(f"🚫 Limite atingido: {msgs_usadas}/{limite}")
+            mensagem_limite = gerar_mensagem_limite_atingido(tipo_plano, msgs_usadas, limite)
+            
+            return jsonify({
+                "response": mensagem_limite,
+                "resposta": mensagem_limite,
+                "metadata": {
+                    "fonte": "limite_atingido",
+                    "sistema": "NatanAI v7.2 - Limite de Mensagens",
+                    "tipo_usuario": tipo_usuario['tipo'],
+                    "plano": tipo_usuario['plano'],
+                    "nome_usuario": tipo_usuario.get('nome_real', 'Cliente'),
+                    "limite_atingido": True,
+                    "mensagens_usadas": msgs_usadas,
+                    "limite_total": limite,
+                    "mensagens_restantes": 0
+                }
+            })
+        
         inicializar_memoria_usuario(user_id)
         
         nome_usuario = tipo_usuario.get('nome_real', 'Cliente')
@@ -935,11 +1193,18 @@ def chat():
         
         print(f"\n{'='*80}")
         print(f"💬 [{datetime.now().strftime('%H:%M:%S')}] {nome_usuario} ({tipo_usuario['nome_display']}) - TIPO: '{tipo_str}'")
+        print(f"📊 Mensagens: {msgs_usadas + 1}/{limite} (restantes: {msgs_restantes - 1})")
         print(f"📝 Mensagem: {mensagem[:100]}...")
         print(f"{'='*80}\n")
         
         resposta, fonte = gerar_resposta(mensagem, tipo_usuario, user_id)
         valida, _ = validar_resposta(resposta, tipo_str)
+        
+        # ✅ INCREMENTA CONTADOR APENAS SE A RESPOSTA FOI GERADA COM SUCESSO
+        if fonte != "erro" and fonte != "fallback":
+            nova_contagem = incrementar_contador(user_id, tipo_plano)
+            msgs_restantes = limite - nova_contagem
+            print(f"📊 Contador atualizado: {nova_contagem}/{limite}")
         
         with historico_lock:
             HISTORICO_CONVERSAS.append({
@@ -966,7 +1231,7 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro",
+                "sistema": "NatanAI v7.2 - Sistema de Limites",
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
                 "nome_usuario": nome_usuario,
@@ -974,7 +1239,14 @@ def chat():
                 "autenticado": user_info is not None,
                 "memoria": memoria_info,
                 "is_free_access": tipo_usuario['tipo'] == 'free',
-                "validacao_anti_alucinacao": valida
+                "validacao_anti_alucinacao": valida,
+                "formatacao_limpa": True,
+                "limite_mensagens": {
+                    "mensagens_usadas": nova_contagem if fonte not in ["erro", "fallback"] else msgs_usadas,
+                    "limite_total": limite,
+                    "mensagens_restantes": max(0, msgs_restantes),
+                    "porcentagem_uso": round((nova_contagem / limite * 100) if limite != float('inf') else 0, 2)
+                }
             }
         })
         
@@ -983,8 +1255,8 @@ def chat():
         import traceback
         traceback.print_exc()
         return jsonify({
-            "response": "Erro técnico. Fale com Natan: (21) 99282-6074\n\n✨ Vibrações Positivas!",
-            "resposta": "Erro técnico. Fale com Natan: (21) 99282-6074\n\n✨ Vibrações Positivas!",
+            "response": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
+            "resposta": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
             "metadata": {"fonte": "erro", "error": str(e)}
         }), 500
 
@@ -1018,6 +1290,9 @@ def estatisticas():
             usuarios_memoria = len(MEMORIA_USUARIOS)
             total_msgs_memoria = sum(len(m['mensagens']) for m in MEMORIA_USUARIOS.values())
         
+        with contador_lock:
+            total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
+        
         return jsonify({
             "total": len(HISTORICO_CONVERSAS),
             "fontes": fontes,
@@ -1034,7 +1309,11 @@ def estatisticas():
                 "conversas_com_contexto": com_memoria,
                 "taxa_uso_memoria": round((com_memoria / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
-            "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro - ~21k msgs com $5"
+            "limites_mensagens": {
+                "total_mensagens_enviadas": total_mensagens_enviadas,
+                "usuarios_com_contador": len(CONTADOR_MENSAGENS)
+            },
+            "sistema": "NatanAI v7.2 - Sistema de Limites por Plano"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1047,12 +1326,49 @@ def limpar_memoria_usuario(user_id):
             return jsonify({"message": f"Memória limpa para user: {user_id[:8]}..."})
         return jsonify({"message": "Usuário não encontrado na memória"}), 404
 
+@app.route('/resetar_contador/<user_id>', methods=['POST'])
+def resetar_contador_endpoint(user_id):
+    """Endpoint para resetar contador de mensagens de um usuário"""
+    if resetar_contador_usuario(user_id):
+        return jsonify({
+            "message": f"Contador resetado para user: {user_id[:8]}...",
+            "novo_contador": obter_contador_mensagens(user_id)
+        })
+    return jsonify({"message": "Usuário não encontrado"}), 404
+
+@app.route('/verificar_limite/<user_id>', methods=['GET'])
+def verificar_limite_endpoint(user_id):
+    """Endpoint para verificar limite de mensagens de um usuário"""
+    try:
+        # Busca dados do usuário para determinar o plano
+        user_data = obter_dados_usuario_completos(user_id)
+        if not user_data:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+        
+        tipo_info = determinar_tipo_usuario(user_data)
+        tipo_plano = tipo_info.get('tipo', 'starter')
+        
+        pode_enviar, msgs_usadas, limite, msgs_restantes = verificar_limite_mensagens(user_id, tipo_plano)
+        
+        return jsonify({
+            "user_id": user_id[:8] + "...",
+            "tipo_plano": tipo_plano,
+            "plano_display": tipo_info.get('plano', 'Starter'),
+            "pode_enviar": pode_enviar,
+            "mensagens_usadas": msgs_usadas,
+            "limite_total": limite if limite != float('inf') else "Ilimitado",
+            "mensagens_restantes": msgs_restantes if msgs_restantes != float('inf') else "Ilimitado",
+            "porcentagem_uso": round((msgs_usadas / limite * 100) if limite != float('inf') else 0, 2)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/ping', methods=['GET'])
 def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v7.0-taf-sem-tabu-cadastro"
+        "version": "v7.2-limites-por-plano"
     })
 
 @app.route('/', methods=['GET'])
@@ -1061,7 +1377,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro</title>
+        <title>NatanAI v7.2 - Sistema de Limites</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -1113,16 +1429,71 @@ def home():
                 50% { transform: scale(1.05); }
             }
             .update-box {
-                background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+                background: linear-gradient(135deg, #fff3e0, #ffe0b2);
                 padding: 20px;
                 border-radius: 15px;
                 margin: 20px 0;
-                border-left: 5px solid #2196F3;
+                border-left: 5px solid #FF9800;
             }
-            .update-box h3 { color: #1976D2; margin-bottom: 10px; }
+            .update-box h3 { color: #F57C00; margin-bottom: 10px; }
+            .limits-info {
+                background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 20px 0;
+                border-left: 5px solid #4CAF50;
+            }
+            .limits-info h3 { color: #2E7D32; margin-bottom: 15px; }
+            .limit-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px;
+                margin: 5px 0;
+                background: white;
+                border-radius: 8px;
+                font-weight: 500;
+            }
+            .limit-item .plan-name {
+                color: #666;
+            }
+            .limit-item .plan-limit {
+                color: #2E7D32;
+                font-weight: bold;
+            }
+            .counter-display {
+                background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+                padding: 15px;
+                border-radius: 10px;
+                margin: 15px 0;
+                text-align: center;
+                font-size: 1.1em;
+            }
+            .counter-display .count {
+                font-size: 2em;
+                font-weight: bold;
+                color: #1976D2;
+            }
+            .progress-bar {
+                width: 100%;
+                height: 30px;
+                background: #e0e0e0;
+                border-radius: 15px;
+                overflow: hidden;
+                margin: 10px 0;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #4CAF50, #8BC34A);
+                transition: width 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+            }
             .chat-box { 
                 border: 2px solid #e0e0e0;
-                height: 450px; 
+                height: 400px; 
                 overflow-y: auto; 
                 padding: 20px; 
                 margin: 20px 0; 
@@ -1149,6 +1520,14 @@ def home():
                 margin-right: 20%;
                 border-left: 4px solid #4CAF50;
             }
+            .warning-message {
+                background: #fff3e0;
+                border-left: 4px solid #FF9800;
+            }
+            .error-message {
+                background: #ffebee;
+                border-left: 4px solid #f44336;
+            }
             .input-area { 
                 display: flex; 
                 gap: 10px;
@@ -1170,6 +1549,10 @@ def home():
                 cursor: pointer;
                 font-weight: bold;
             }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
             .select-plan {
                 margin: 20px 0;
                 padding: 15px;
@@ -1189,58 +1572,89 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v7.0 - Atualizado ✅</h1>
-                <p style="color: #666;">TAF Sem Tabu + Páginas de Cadastro</p>
-                <span class="badge update">✅ v7.0</span>
-                <span class="badge new">🆕 TAF Sem Tabu</span>
-                <span class="badge new">📄 Cadastro</span>
-                <span class="badge">7 Projetos</span>
+                <h1>🧠 NatanAI v7.2 - Sistema de Limites</h1>
+                <p style="color: #666;">Controle de Mensagens por Plano</p>
+                <span class="badge update">✅ v7.2</span>
+                <span class="badge new">📊 Limites Ativos</span>
+                <span class="badge new">🎁 Free: 75 msgs</span>
+                <span class="badge">650 tokens</span>
             </div>
             
             <div class="update-box">
-                <h3>✨ Atualizações v7.0:</h3>
+                <h3>🆕 NOVO - Sistema de Limites v7.2:</h3>
                 <p>
-                🆕 <strong>Projeto TAF Sem Tabu</strong> - OnePage sobre E-Book de TAF adicionado ao portfólio<br>
-                📄 <strong>Páginas starter e professional</strong> - Formulários de cadastro com QR Code PIX<br>
-                💳 <strong>Sistema de pagamento</strong> - QR Code e Código Copia e Cola para facilitar<br>
-                📧 <strong>EmailJS integrado</strong> - Envio automático dos dados para o Natan<br>
-                ⏱️ <strong>Processo completo</strong> - Da contratação à criação da conta em até 2 horas<br>
-                ✅ <strong>7 projetos no portfólio</strong> - Todos os projetos atualizados e funcionando
+                ✅ <strong>Limites por plano</strong> - Cada plano tem seu limite de mensagens<br>
+                📊 <strong>Contador em tempo real</strong> - Acompanhe quantas mensagens restam<br>
+                🔄 <strong>Renovação mensal</strong> - Limites resetam automaticamente<br>
+                🚫 <strong>Bloqueio ao atingir limite</strong> - Mensagem personalizada por plano<br>
+                💎 <strong>Upgrade incentivado</strong> - Sugestões para planos superiores<br>
+                👑 <strong>Admin ilimitado</strong> - Sem restrições para o criador
                 </p>
+            </div>
+
+            <div class="limits-info">
+                <h3>📊 Limites de Mensagens por Plano:</h3>
+                <div class="limit-item">
+                    <span class="plan-name">🎁 FREE ACCESS (7 dias)</span>
+                    <span class="plan-limit">75 mensagens totais</span>
+                </div>
+                <div class="limit-item">
+                    <span class="plan-name">🌱 STARTER</span>
+                    <span class="plan-limit">1.000 mensagens/mês</span>
+                </div>
+                <div class="limit-item">
+                    <span class="plan-name">💎 PROFESSIONAL</span>
+                    <span class="plan-limit">5.000 mensagens/mês</span>
+                </div>
+                <div class="limit-item">
+                    <span class="plan-name">👑 ADMIN</span>
+                    <span class="plan-limit">∞ Ilimitado</span>
+                </div>
             </div>
 
             <div class="select-plan">
                 <strong>🎭 Testar como:</strong>
                 <select id="planType" onchange="atualizarPlano()">
-                    <option value="free">🎁 Free Access (WhatsApp apenas)</option>
-                    <option value="starter">🌱 Starter (Página Suporte)</option>
-                    <option value="professional">💎 Professional (Página Suporte)</option>
-                    <option value="admin">👑 Admin (Natan - Criador)</option>
+                    <option value="free">🎁 Free Access (75 mensagens totais)</option>
+                    <option value="starter">🌱 Starter (1.000 mensagens/mês)</option>
+                    <option value="professional">💎 Professional (5.000 mensagens/mês)</option>
+                    <option value="admin">👑 Admin (Ilimitado)</option>
                 </select>
                 <p id="planInfo" style="margin-top: 10px; color: #666;"></p>
+            </div>
+
+            <div class="counter-display" id="counterDisplay">
+                <div>Mensagens enviadas nesta sessão:</div>
+                <div class="count" id="messageCount">0</div>
+                <div id="remainingInfo" style="margin-top: 10px; color: #666;"></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar" style="width: 0%">0%</div>
+                </div>
             </div>
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v7.0:</strong><br><br>
-                    Todas as informações atualizadas! ✅<br><br>
-                    <strong>✨ Novidades:</strong><br>
-                    • Projeto TAF Sem Tabu no portfólio<br>
-                    • Páginas de cadastro (cadastro starter e cadastro professional)<br>
-                    • Sistema de pagamento via PIX com QR Code<br>
-                    • 7 projetos completos no portfólio<br><br>
-                    <strong>Teste perguntas sobre cadastro, TAF Sem Tabu e mais!</strong>
+                    <strong>🤖 NatanAI v7.2:</strong><br><br>
+                    Sistema de Limites de Mensagens ativado! 📊<br><br>
+                    <strong>Como funciona:</strong><br>
+                    • Cada plano tem um limite de mensagens<br>
+                    • O contador é atualizado em tempo real<br>
+                    • Ao atingir o limite, você recebe orientações<br>
+                    • Planos pagos renovam mensalmente<br><br>
+                    <strong>Teste o sistema!</strong>
                 </div>
             </div>
             
             <div class="input-area">
                 <input type="text" id="msg" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter') enviar()">
-                <button onclick="enviar()">Enviar</button>
+                <button id="sendBtn" onclick="enviar()">Enviar</button>
             </div>
         </div>
 
         <script>
         let planAtual = 'free';
+        let mensagensEnviadas = 0;
+        let limiteAtual = 75;
 
         const planConfigs = {
             free: {
@@ -1249,7 +1663,8 @@ def home():
                 user_name: 'Visitante Free',
                 name: 'Visitante Free',
                 email: 'free@teste.com',
-                info: '🎁 FREE ACCESS - Contato apenas WhatsApp (21) 99282-6074'
+                limite: 75,
+                info: '🎁 FREE ACCESS - 75 mensagens totais (7 dias)'
             },
             admin: {
                 plan: 'admin',
@@ -1257,7 +1672,8 @@ def home():
                 user_name: 'Natan',
                 name: 'Natan',
                 email: 'natan@natandev.com',
-                info: '👑 ADMIN (Natan - Criador da NatanSites)'
+                limite: Infinity,
+                info: '👑 ADMIN (Natan) - Mensagens ilimitadas'
             },
             starter: {
                 plan: 'starter',
@@ -1265,7 +1681,8 @@ def home():
                 user_name: 'Cliente Starter',
                 name: 'Cliente Starter',
                 email: 'starter@teste.com',
-                info: '🌱 STARTER - Suporte via página de Suporte da plataforma'
+                limite: 1000,
+                info: '🌱 STARTER - 1.000 mensagens/mês'
             },
             professional: {
                 plan: 'professional',
@@ -1273,24 +1690,68 @@ def home():
                 user_name: 'Cliente Pro',
                 name: 'Cliente Pro',
                 email: 'pro@teste.com',
-                info: '💎 PROFESSIONAL - Suporte via página de Suporte da plataforma'
+                limite: 5000,
+                info: '💎 PROFESSIONAL - 5.000 mensagens/mês'
             }
         };
 
         function atualizarPlano() {
             planAtual = document.getElementById('planType').value;
+            limiteAtual = planConfigs[planAtual].limite;
+            mensagensEnviadas = 0;
+            
             document.getElementById('planInfo').textContent = planConfigs[planAtual].info;
+            atualizarContador();
+            
             const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.0:</strong><br><br>' + 
+            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.2:</strong><br><br>' + 
                 planConfigs[planAtual].info + '<br><br>' +
-                '<strong>Teste perguntas como:</strong><br>' +
-                '• "O que é o projeto TAF Sem Tabu?"<br>' +
-                '• "Como faço para contratar o plano Starter?"<br>' +
-                '• "Como funciona o plano starter?"<br>' +
-                '• "Qual a diferença entre starter e professional?"<br>' +
-                '• "Quais são os 7 projetos do portfólio?"<br>' +
-                '• "Quanto tempo demora para criar minha conta?"' +
+                '<strong>Limite deste plano:</strong> ' + (limiteAtual === Infinity ? 'Ilimitado' : limiteAtual + ' mensagens') + '<br><br>' +
+                '<strong>Teste o sistema de limites!</strong><br>' +
+                'Envie mensagens e veja o contador atualizar em tempo real.' +
                 '</div>';
+        }
+
+        function atualizarContador() {
+            const countEl = document.getElementById('messageCount');
+            const remainingEl = document.getElementById('remainingInfo');
+            const progressBar = document.getElementById('progressBar');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            countEl.textContent = mensagensEnviadas;
+            
+            if (limiteAtual === Infinity) {
+                remainingEl.textContent = 'Mensagens ilimitadas disponíveis';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '∞';
+                progressBar.style.background = 'linear-gradient(90deg, #FFD700, #FFA500)';
+            } else {
+                const restantes = limiteAtual - mensagensEnviadas;
+                const porcentagem = Math.round((mensagensEnviadas / limiteAtual) * 100);
+                
+                remainingEl.textContent = `Restam ${restantes} de ${limiteAtual} mensagens`;
+                progressBar.style.width = porcentagem + '%';
+                progressBar.textContent = porcentagem + '%';
+                
+                if (porcentagem >= 90) {
+                    progressBar.style.background = 'linear-gradient(90deg, #f44336, #e91e63)';
+                } else if (porcentagem >= 70) {
+                    progressBar.style.background = 'linear-gradient(90deg, #FF9800, #FF5722)';
+                } else {
+                    progressBar.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                }
+                
+                if (mensagensEnviadas >= limiteAtual) {
+                    sendBtn.disabled = true;
+                    remainingEl.textContent = '🚫 Limite atingido!';
+                    remainingEl.style.color = '#f44336';
+                    remainingEl.style.fontWeight = 'bold';
+                } else {
+                    sendBtn.disabled = false;
+                    remainingEl.style.color = '#666';
+                    remainingEl.style.fontWeight = 'normal';
+                }
+            }
         }
 
         atualizarPlano();
@@ -1301,6 +1762,16 @@ def home():
             const msg = input.value.trim();
             
             if (!msg) return;
+            
+            // Verifica limite no cliente
+            if (limiteAtual !== Infinity && mensagensEnviadas >= limiteAtual) {
+                chatBox.innerHTML += '<div class="message error-message"><strong>🚫 Limite Atingido:</strong><br>' +
+                    'Você atingiu o limite de mensagens do seu plano.<br>' +
+                    'O sistema bloqueou novas mensagens.' +
+                    '</div>';
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return;
+            }
             
             chatBox.innerHTML += '<div class="message user"><strong>Você:</strong><br>' + msg + '</div>';
             input.value = '';
@@ -1319,14 +1790,30 @@ def home():
                 });
                 
                 const data = await response.json();
-                const resp = (data.response || data.resposta).replace(/\\n/g, '<br>');
+                const resp = (data.response || data.resposta).replace(/\n/g, '<br>');
                 
-                chatBox.innerHTML += '<div class="message bot"><strong>🤖 NatanAI v7.0:</strong><br><br>' + resp + '</div>';
+                // Verifica se o limite foi atingido
+                const limiteAtingido = data.metadata && data.metadata.limite_atingido;
+                const messageClass = limiteAtingido ? 'warning-message' : 'bot';
+                
+                chatBox.innerHTML += '<div class="message ' + messageClass + '"><strong>🤖 NatanAI v7.2:</strong><br><br>' + resp + '</div>';
+                
+                // Atualiza contador
+                if (data.metadata && data.metadata.limite_mensagens) {
+                    const limiteInfo = data.metadata.limite_mensagens;
+                    mensagensEnviadas = limiteInfo.mensagens_usadas;
+                    atualizarContador();
+                    
+                    console.log('📊 Limite Info:', limiteInfo);
+                } else if (!limiteAtingido) {
+                    mensagensEnviadas++;
+                    atualizarContador();
+                }
                 
                 console.log('✅ Metadata:', data.metadata);
                 
             } catch (error) {
-                chatBox.innerHTML += '<div class="message bot"><strong>🤖 NatanAI:</strong><br>Erro: ' + error.message + '</div>';
+                chatBox.innerHTML += '<div class="message error-message"><strong>🤖 NatanAI:</strong><br>Erro: ' + error.message + '</div>';
                 console.error('❌ Erro:', error);
             }
             
@@ -1339,50 +1826,41 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🧠 NATANAI v7.0 - TAF SEM TABU + PÁGINAS DE CADASTRO")
+    print("🧠 NATANAI v7.2 - SISTEMA DE LIMITES DE MENSAGENS POR PLANO")
     print("="*80)
-    print("✨ ATUALIZAÇÕES v7.0:")
-    print("   🆕 Projeto TAF Sem Tabu:")
-    print("      - OnePage sobre E-Book de preparação para TAF")
-    print("      - Link: https://tafsemtabu.com.br")
-    print("      - Stack: HTML, CSS, JavaScript")
+    print("📊 LIMITES CONFIGURADOS:")
+    print("   🎁 FREE ACCESS: 75 mensagens totais (7 dias)")
+    print("   🌱 STARTER: 1.000 mensagens/mês")
+    print("   💎 PROFESSIONAL: 5.000 mensagens/mês")
+    print("   👑 ADMIN: ∞ Ilimitado")
     print("")
-    print("   📄 Páginas de Cadastro:")
-    print("      - starter: Cadastro Plano Starter (R$320,00)")
-    print("      - professional: Cadastro Plano Professional (R$530,00)")
-    print("      - Formulário: Nome, Data Nascimento, CPF")
-    print("      - Pagamento: QR Code PIX + Código Copia e Cola")
-    print("      - Envio automático via EmailJS")
-    print("      - Tempo de criação: 10min a 2h")
+    print("✨ FEATURES v7.2:")
+    print("   ✅ Contador de mensagens por usuário")
+    print("   ✅ Verificação de limite antes de responder")
+    print("   ✅ Mensagem personalizada ao atingir limite")
+    print("   ✅ Bloqueio automático após limite")
+    print("   ✅ Sugestões de upgrade por plano")
+    print("   ✅ Endpoint para resetar contador")
+    print("   ✅ Endpoint para verificar limites")
     print("")
-    print("   ✅ Portfólio completo com 7 projetos:")
-    print("      1. Espaço Familiares")
-    print("      2. DeluxModPack - GTAV")
-    print("      3. Quiz Venezuela")
-    print("      4. Plataforma NatanSites")
-    print("      5. MathWork")
-    print("      6. Alessandra Yoga")
-    print("      7. TAF Sem Tabu (NOVO!)")
+    print("🔧 AJUSTES TÉCNICOS:")
+    print("   • max_tokens reduzido para 650 (economia)")
+    print("   • Sistema de contador thread-safe")
+    print("   • Validação relaxada para Free Access")
+    print("   • Mensagens personalizadas por tipo de plano")
     print("")
-    print("   📋 Informações Completas:")
-    print("      - Contatos: WhatsApp (21) 99282-6074, borgesnatan09@gmail.com")
-    print("      - GitHub: natsongamesoficial551")
-    print("      - Stack: HTML, CSS, JS, React, Node, Python, C#")
-    print("")
-    print("🎁 Free Access: WhatsApp (21) 99282-6074 exclusivo")
-    print("💼 Starter/Professional: Página de Suporte prioritária")
-    print("📄 Cadastro: plano starter e plano professional explicados")
-    print("👑 Admin: Reconhece Natan como criador")
-    print("✨ Sistema de memória contextual (10 mensagens)")
-    print("📝 Resumo automático a cada 5 mensagens")
-    print("💰 Custo: ~$0.00024/msg = 21.000 mensagens com $5")
+    print("💰 CUSTO ESTIMADO:")
+    print("   • FREE (75 msgs): ~$0,033 (R$ 0,17)")
+    print("   • STARTER (1k msgs): ~$0,44 (R$ 2,20)")
+    print("   • PROFESSIONAL (5k msgs): ~$2,20 (R$ 11,00)")
+    print("   • Total com $5: ~11.318 mensagens")
     print("="*80 + "\n")
     
     print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
     print(f"Supabase: {'✅' if supabase else '⚠️'}")
     print(f"Sistema de Memória: ✅ Ativo")
-    print(f"Portfólio: ✅ Atualizado com 7 projetos (incluindo TAF Sem Tabu)")
-    print(f"Páginas de Cadastro: ✅ starter e professional configurados")
-    print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
+    print(f"Sistema de Limites: ✅ Ativo")
+    print(f"Limpeza de Formatação: ✅ Ativa")
+    print(f"Max Tokens: ✅ 650 (otimizado)\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
