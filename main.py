@@ -545,7 +545,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 
 💳 PLANOS NATANSITES (VALORES OFICIAIS):
 
-🌱 **STARTER** - R$39,99/mês + R$320 (setup único)
+🌱 **STARTER** - R$320 (setup único)
 - Site profissional até 5 páginas
 - Design responsivo (mobile/tablet/desktop)
 - SEO básico otimizado
@@ -556,7 +556,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - SSL/HTTPS seguro
 - Ideal para: Pequenos negócios, profissionais autônomos, portfólios
 
-💎 **PROFESSIONAL** - R$79,99/mês + R$530 (setup único) ⭐ MAIS POPULAR
+💎 **PROFESSIONAL** - R$530 (setup único) ⭐ MAIS POPULAR
 - Tudo do Starter +
 - Páginas ILIMITADAS
 - Design 100% personalizado
@@ -584,26 +584,26 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 
 📄 PÁGINAS DE CADASTRO DA NATANSITES (STARTER.HTML E PROFESSIONAL.HTML):
 
-🔹 **STARTER.HTML** (Cadastro Plano Starter - R$359,99)
+🔹 **STARTER.HTML** (Cadastro Plano Starter - R$320,99)
 - Página de cadastro rápido para o plano Starter
 - **Formulário com campos**:
   * Nome Completo (obrigatório)
   * Data de Nascimento (idade mínima: 13 anos)
   * CPF (com máscara automática: 000.000.000-00)
-- **QR Code PIX** para pagamento de R$359,99
+- **QR Code PIX** para pagamento de R$320,00
 - **Código PIX Copia e Cola** disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
 
-🔹 **PROFESSIONAL.HTML** (Cadastro Plano Professional - R$609,99)
+🔹 **PROFESSIONAL.HTML** (Cadastro Plano Professional - R$530,00)
 - Página de cadastro rápido para o plano Professional
 - **Formulário com campos**:
   * Nome Completo (obrigatório)
   * Data de Nascimento (idade mínima: 13 anos)
   * CPF (com máscara automática: 000.000.000-00)
-- **QR Code PIX** para pagamento de R$609,99
+- **QR Code PIX** para pagamento de R$530,00
 - **Código PIX Copia e Cola** disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
@@ -633,8 +633,8 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Validação de CPF simples (11 dígitos)
 
 4. **Diferenças entre Starter e Professional:**
-   - STARTER: QR Code de R$359,99 (setup R$320 + 1º mês R$39,99)
-   - PROFESSIONAL: QR Code de R$609,99 (setup R$530 + 1º mês R$79,99)
+   - STARTER: QR Code de R$320,00 (setup R$320)
+   - PROFESSIONAL: QR Code de R$530,00 (setup R$530)
    - Formulários idênticos, apenas valores e QR Codes diferentes
 
 5. **Como explicar para os clientes:**
@@ -682,8 +682,8 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - **PAGOS (Starter/Professional)**: SEMPRE "Abra a página de Suporte na plataforma" - NÃO mencione WhatsApp a menos que peçam
 
 7. **PÁGINAS DE CADASTRO (starter.html e professional.html):**
-   - Se perguntar "como contratar Starter": "Acesse a página starter.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$359,99) e aguarde até 2 horas para a criação da conta!"
-   - Se perguntar "como contratar Professional": "Acesse a página professional.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$609,99) e aguarde até 2 horas para a criação da conta!"
+   - Se perguntar "como contratar Starter": "Acesse a página starter.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!"
+   - Se perguntar "como contratar Professional": "Acesse a página professional.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!"
    - Se perguntar sobre o formulário: "O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!"
    - Se perguntar quanto tempo demora: "Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!"
 
@@ -1322,8 +1322,8 @@ if __name__ == '__main__':
     print("      - Stack: HTML, CSS, JavaScript")
     print("")
     print("   📄 Páginas de Cadastro:")
-    print("      - starter.html: Cadastro Plano Starter (R$359,99)")
-    print("      - professional.html: Cadastro Plano Professional (R$609,99)")
+    print("      - starter.html: Cadastro Plano Starter (R$320,00)")
+    print("      - professional.html: Cadastro Plano Professional (R$530,00)")
     print("      - Formulário: Nome, Data Nascimento, CPF")
     print("      - Pagamento: QR Code PIX + Código Copia e Cola")
     print("      - Envio automático via EmailJS")
