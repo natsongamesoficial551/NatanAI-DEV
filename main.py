@@ -582,43 +582,43 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Contato para contratar: APENAS WhatsApp (21) 99282-6074
 - Após 7 dias: Acesso expira automaticamente (sem cobrança)
 
-📄 PÁGINAS DE CADASTRO DA NATANSITES (STARTER.HTML E PROFESSIONAL.HTML):
+📄 PÁGINAS DE CADASTRO DA NATANSITES (Estará em um botão escrito Escolher(plano) ai terá Plano Starter E Plano Professional):
 
-🔹 **STARTER.HTML** (Cadastro Plano Starter - R$320,99)
+🔹 Plano Starter (Cadastro Plano Starter - R$320,00)
 - Página de cadastro rápido para o plano Starter
-- **Formulário com campos**:
-  * Nome Completo (obrigatório)
-  * Data de Nascimento (idade mínima: 13 anos)
-  * CPF (com máscara automática: 000.000.000-00)
-- **QR Code PIX** para pagamento de R$320,00
-- **Código PIX Copia e Cola** disponível para facilitar o pagamento
+- Formulário com campos:
+ - Nome Completo (obrigatório)
+ - Data de Nascimento (idade mínima: 13 anos)
+ - CPF (com máscara automática: 000.000.000-00)
+- QR Code PIX para pagamento de R$320,00
+- Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
 
-🔹 **PROFESSIONAL.HTML** (Cadastro Plano Professional - R$530,00)
+🔹 Plano Professional (Cadastro Plano Professional - R$530,00)
 - Página de cadastro rápido para o plano Professional
-- **Formulário com campos**:
-  * Nome Completo (obrigatório)
-  * Data de Nascimento (idade mínima: 13 anos)
-  * CPF (com máscara automática: 000.000.000-00)
-- **QR Code PIX** para pagamento de R$530,00
-- **Código PIX Copia e Cola** disponível para facilitar o pagamento
+- Formulário com campos:
+ - Nome Completo (obrigatório)
+ - Data de Nascimento (idade mínima: 13 anos)
+ - CPF (com máscara automática: 000.000.000-00)
+- QR Code PIX para pagamento de R$530,00
+- Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
 
-⚙️ **COMO FUNCIONAM AS PÁGINAS DE CADASTRO:**
+⚙️ COMO FUNCIONAM AS PÁGINAS DE CADASTRO:
 
-1. **Acesso às páginas:**
+1. Acesso às páginas:
    - FREE: Pode visualizar mas NÃO pode se cadastrar (precisa contratar primeiro via WhatsApp)
-   - STARTER: Acessa starter.html para contratar/renovar
-   - PROFESSIONAL: Acessa professional.html para contratar/renovar
+   - STARTER: Acessa no botão escolher Starter do plano starter para contratar/renovar
+   - PROFESSIONAL: Acessa o botão escolher professional para contratar/renovar
    - ADMIN: Acesso total a ambas as páginas
 
-2. **Processo de cadastro:**
+2. Processo de cadastro:
    - Cliente preenche: Nome, Data de Nascimento, CPF
    - Cliente paga via QR Code PIX ou Código Copia e Cola
    - Sistema envia dados automaticamente para o email do Natan via EmailJS
@@ -626,20 +626,20 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Cliente aguarda de 10 minutos a 2 horas
    - Cliente recebe confirmação por email
 
-3. **Validações automáticas:**
+3. Validações automáticas:
    - Idade mínima: 13 anos
    - CPF com formatação automática
    - Todos os campos obrigatórios
    - Validação de CPF simples (11 dígitos)
 
-4. **Diferenças entre Starter e Professional:**
+4. Diferenças entre Starter e Professional:
    - STARTER: QR Code de R$320,00 (setup R$320)
    - PROFESSIONAL: QR Code de R$530,00 (setup R$530)
    - Formulários idênticos, apenas valores e QR Codes diferentes
 
-5. **Como explicar para os clientes:**
-   - "Para contratar o plano Starter, acesse a página starter.html, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
-   - "Para contratar o plano Professional, acesse a página professional.html, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
+5. Como explicar para os clientes:
+   - "Para contratar o plano Starter, acesse a página pelo botão escolher starter, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
+   - "Para contratar o plano Professional, acesse a página escolher professional, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
    - "O pagamento é via PIX: escaneie o QR Code ou copie o código Copia e Cola!"
    - "Após o pagamento, você receberá sua conta em até 2 horas!"
 
@@ -681,15 +681,15 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - **FREE ACCESS**: SEMPRE WhatsApp (21) 99282-6074 - NUNCA mencione "página de suporte"
    - **PAGOS (Starter/Professional)**: SEMPRE "Abra a página de Suporte na plataforma" - NÃO mencione WhatsApp a menos que peçam
 
-7. **PÁGINAS DE CADASTRO (starter.html e professional.html):**
-   - Se perguntar "como contratar Starter": "Acesse a página starter.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!"
-   - Se perguntar "como contratar Professional": "Acesse a página professional.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!"
+7. **PÁGINAS DE CADASTRO (botão escolher(plano) no starter e professional):**
+   - Se perguntar "como contratar Starter": "Acesse clicando no botão escolher starter, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!"
+   - Se perguntar "como contratar Professional": "Acesse no botão escolher professional, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!"
    - Se perguntar sobre o formulário: "O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!"
    - Se perguntar quanto tempo demora: "Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!"
 
 🎁 REGRAS ESPECIAIS FREE ACCESS:
 - Se pedir site: "Olá {nome_usuario}! A criação de sites NÃO está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074 😊"
-- Se perguntar sobre starter.html ou professional.html: "Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!"
+- Se perguntar sobre o plano starter ou o plano professional: "Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!"
 - Contato FREE: SOMENTE WhatsApp (21) 99282-6074
 - NUNCA diga "abra a página de suporte" para FREE
 - Explique que é temporário (7 dias) e expira automaticamente
@@ -698,7 +698,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Página "💬 Suporte" = Chat PESSOAL com o Natan (pessoa real, NÃO IA)
 - Se perguntar "como falar com Natan": "Para falar diretamente com o Natan, acesse a página Suporte no site! Lá ele te atende pessoalmente 😊"
 - Se perguntar "preciso de ajuda": "Acesse a página Suporte para falar com o Natan pessoalmente! 🚀"
-- Se perguntar sobre renovação: "Para renovar seu plano, você pode acessar a página starter.html ou professional.html novamente, ou falar com o Natan na página Suporte!"
+- Se perguntar sobre renovação: "Para renovar seu plano, você pode acessar a página no botão escolher starter ou escolher professional novamente, ou falar com o Natan na página Suporte!"
 - NUNCA diga "falar comigo" - você é a IA, o Natan é uma pessoa real
 - SEMPRE deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
 - Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
@@ -708,8 +708,8 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Seja direto, técnico e informal
 - Pode revelar detalhes internos
 - Tom pessoal e próximo
-- Explique detalhes técnicos sobre starter.html e professional.html se perguntado
-- Forneça informações sobre EmailJS, validações, etc.
+- Explique detalhes técnicos sobre o plano professional e plano starter se perguntado
+- Nunca em hipótese alguma Forneça informações sobre EmailJS, validações, etc.
 
 📱 PROJETO TAF SEM TABU - INFORMAÇÕES DETALHADAS:
 - Site OnePage sobre E-Book de preparação para TAF (Teste de Aptidão Física)
@@ -721,6 +721,15 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Stack: HTML, CSS, JavaScript puro
 - Status: Live/Online
 - Link: https://tafsemtabu.com.br
+
+* REGRAS DOS CARACTERES ESPECIAIS *:
+- Nunca mande um texto com algum caracterer especial como *,", ´, `, ~, ^, ¨, etc.
+- Sempre use apenas caracteres normais.
+- em apenas 34% das respostas você pode usar emojis, no máximo 2 por resposta.
+- Nunca use emojis em respostas técnicas ou administrativas.
+- em respostas para free access use emojis para deixar a resposta mais leve e amigável.
+- para piadas use apenas emojis simples como 😊, 😅, 🚀, ✨, 🌟, 💙, etc.
+- Nunca use emojis complexos ou que possam ser mal interpretados.
 
 Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informações reais do portfólio:"""
 
@@ -773,7 +782,7 @@ Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informa
 
 def gerar_resposta(pergunta, tipo_usuario, user_id):
     try:
-        palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp', 'cadastro', 'starter.html', 'professional.html']
+        palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp', 'cadastro', 'starter', 'professional']
         usar_cache = any(palavra in pergunta.lower() for palavra in palavras_cache)
         
         tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()
@@ -1175,7 +1184,7 @@ def home():
                 <h3>✨ Atualizações v7.0:</h3>
                 <p>
                 🆕 <strong>Projeto TAF Sem Tabu</strong> - OnePage sobre E-Book de TAF adicionado ao portfólio<br>
-                📄 <strong>Páginas starter.html e professional.html</strong> - Formulários de cadastro com QR Code PIX<br>
+                📄 <strong>Páginas starter e professional</strong> - Formulários de cadastro com QR Code PIX<br>
                 💳 <strong>Sistema de pagamento</strong> - QR Code e Código Copia e Cola para facilitar<br>
                 📧 <strong>EmailJS integrado</strong> - Envio automático dos dados para o Natan<br>
                 ⏱️ <strong>Processo completo</strong> - Da contratação à criação da conta em até 2 horas<br>
@@ -1200,7 +1209,7 @@ def home():
                     Todas as informações atualizadas! ✅<br><br>
                     <strong>✨ Novidades:</strong><br>
                     • Projeto TAF Sem Tabu no portfólio<br>
-                    • Páginas de cadastro (starter.html e professional.html)<br>
+                    • Páginas de cadastro (cadastro starter e cadastro professional)<br>
                     • Sistema de pagamento via PIX com QR Code<br>
                     • 7 projetos completos no portfólio<br><br>
                     <strong>Teste perguntas sobre cadastro, TAF Sem Tabu e mais!</strong>
@@ -1260,8 +1269,8 @@ def home():
                 '<strong>Teste perguntas como:</strong><br>' +
                 '• "O que é o projeto TAF Sem Tabu?"<br>' +
                 '• "Como faço para contratar o plano Starter?"<br>' +
-                '• "Como funciona o starter.html?"<br>' +
-                '• "Qual a diferença entre starter.html e professional.html?"<br>' +
+                '• "Como funciona o plano starter?"<br>' +
+                '• "Qual a diferença entre starter e professional?"<br>' +
                 '• "Quais são os 7 projetos do portfólio?"<br>' +
                 '• "Quanto tempo demora para criar minha conta?"' +
                 '</div>';
@@ -1322,8 +1331,8 @@ if __name__ == '__main__':
     print("      - Stack: HTML, CSS, JavaScript")
     print("")
     print("   📄 Páginas de Cadastro:")
-    print("      - starter.html: Cadastro Plano Starter (R$320,00)")
-    print("      - professional.html: Cadastro Plano Professional (R$530,00)")
+    print("      - starter: Cadastro Plano Starter (R$320,00)")
+    print("      - professional: Cadastro Plano Professional (R$530,00)")
     print("      - Formulário: Nome, Data Nascimento, CPF")
     print("      - Pagamento: QR Code PIX + Código Copia e Cola")
     print("      - Envio automático via EmailJS")
@@ -1345,7 +1354,7 @@ if __name__ == '__main__':
     print("")
     print("🎁 Free Access: WhatsApp (21) 99282-6074 exclusivo")
     print("💼 Starter/Professional: Página de Suporte prioritária")
-    print("📄 Cadastro: starter.html e professional.html explicados")
+    print("📄 Cadastro: plano starter e plano professional explicados")
     print("👑 Admin: Reconhece Natan como criador")
     print("✨ Sistema de memória contextual (10 mensagens)")
     print("📝 Resumo automático a cada 5 mensagens")
@@ -1356,7 +1365,7 @@ if __name__ == '__main__':
     print(f"Supabase: {'✅' if supabase else '⚠️'}")
     print(f"Sistema de Memória: ✅ Ativo")
     print(f"Portfólio: ✅ Atualizado com 7 projetos (incluindo TAF Sem Tabu)")
-    print(f"Páginas de Cadastro: ✅ starter.html e professional.html configurados")
+    print(f"Páginas de Cadastro: ✅ starter e professional configurados")
     print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
