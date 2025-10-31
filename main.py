@@ -1031,7 +1031,7 @@ def ping():
 
 @app.route('/', methods=['GET'])
 def home():
-    html = """
+    return render_template_string('''
     <!DOCTYPE html>
     <html>
     <head>
@@ -1254,19 +1254,17 @@ def home():
         function atualizarPlano() {
             planAtual = document.getElementById('planType').value;
             document.getElementById('planInfo').textContent = planConfigs[planAtual].info;
-            document.getElementById('chat-box').innerHTML = `
-                <div class="message bot">
-                    <strong>🤖 NatanAI v7.0:</strong><br><br>
-                    ${planConfigs[planAtual].info}<br><br>
-                    <strong>Teste perguntas como:</strong><br>
-                    • "O que é o projeto TAF Sem Tabu?"<br>
-                    • "Como faço para contratar o plano Starter?"<br>
-                    • "Como funciona o starter.html?"<br>
-                    • "Qual a diferença entre starter.html e professional.html?"<br>
-                    • "Quais são os 7 projetos do portfólio?"<br>
-                    • "Quanto tempo demora para criar minha conta?"
-                </div>
-            `;
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.0:</strong><br><br>' + 
+                planConfigs[planAtual].info + '<br><br>' +
+                '<strong>Teste perguntas como:</strong><br>' +
+                '• "O que é o projeto TAF Sem Tabu?"<br>' +
+                '• "Como faço para contratar o plano Starter?"<br>' +
+                '• "Como funciona o starter.html?"<br>' +
+                '• "Qual a diferença entre starter.html e professional.html?"<br>' +
+                '• "Quais são os 7 projetos do portfólio?"<br>' +
+                '• "Quanto tempo demora para criar minha conta?"' +
+                '</div>';
         }
 
         atualizarPlano();
@@ -1278,7 +1276,7 @@ def home():
             
             if (!msg) return;
             
-            chatBox.innerHTML += `<div class="message user"><strong>Você:</strong><br>${msg}</div>`;
+            chatBox.innerHTML += '<div class="message user"><strong>Você:</strong><br>' + msg + '</div>';
             input.value = '';
             chatBox.scrollTop = chatBox.scrollHeight;
             
@@ -1295,4 +1293,70 @@ def home():
                 });
                 
                 const data = await response.json();
-                const resp = (data.response || data.resposta).
+                const resp = (data.response || data.resposta).replace(/\\n/g, '<br>');
+                
+                chatBox.innerHTML += '<div class="message bot"><strong>🤖 NatanAI v7.0:</strong><br><br>' + resp + '</div>';
+                
+                console.log('✅ Metadata:', data.metadata);
+                
+            } catch (error) {
+                chatBox.innerHTML += '<div class="message bot"><strong>🤖 NatanAI:</strong><br>Erro: ' + error.message + '</div>';
+                console.error('❌ Erro:', error);
+            }
+            
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        </script>
+    </body>
+    </html>
+    ''')
+
+if __name__ == '__main__':
+    print("\n" + "="*80)
+    print("🧠 NATANAI v7.0 - TAF SEM TABU + PÁGINAS DE CADASTRO")
+    print("="*80)
+    print("✨ ATUALIZAÇÕES v7.0:")
+    print("   🆕 Projeto TAF Sem Tabu:")
+    print("      - OnePage sobre E-Book de preparação para TAF")
+    print("      - Link: https://tafsemtabu.com.br")
+    print("      - Stack: HTML, CSS, JavaScript")
+    print("")
+    print("   📄 Páginas de Cadastro:")
+    print("      - starter.html: Cadastro Plano Starter (R$359,99)")
+    print("      - professional.html: Cadastro Plano Professional (R$609,99)")
+    print("      - Formulário: Nome, Data Nascimento, CPF")
+    print("      - Pagamento: QR Code PIX + Código Copia e Cola")
+    print("      - Envio automático via EmailJS")
+    print("      - Tempo de criação: 10min a 2h")
+    print("")
+    print("   ✅ Portfólio completo com 7 projetos:")
+    print("      1. Espaço Familiares")
+    print("      2. DeluxModPack - GTAV")
+    print("      3. Quiz Venezuela")
+    print("      4. Plataforma NatanSites")
+    print("      5. MathWork")
+    print("      6. Alessandra Yoga")
+    print("      7. TAF Sem Tabu (NOVO!)")
+    print("")
+    print("   📋 Informações Completas:")
+    print("      - Contatos: WhatsApp (21) 99282-6074, borgesnatan09@gmail.com")
+    print("      - GitHub: natsongamesoficial551")
+    print("      - Stack: HTML, CSS, JS, React, Node, Python, C#")
+    print("")
+    print("🎁 Free Access: WhatsApp (21) 99282-6074 exclusivo")
+    print("💼 Starter/Professional: Página de Suporte prioritária")
+    print("📄 Cadastro: starter.html e professional.html explicados")
+    print("👑 Admin: Reconhece Natan como criador")
+    print("✨ Sistema de memória contextual (10 mensagens)")
+    print("📝 Resumo automático a cada 5 mensagens")
+    print("💰 Custo: ~$0.00024/msg = 21.000 mensagens com $5")
+    print("="*80 + "\n")
+    
+    print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
+    print(f"Supabase: {'✅' if supabase else '⚠️'}")
+    print(f"Sistema de Memória: ✅ Ativo")
+    print(f"Portfólio: ✅ Atualizado com 7 projetos (incluindo TAF Sem Tabu)")
+    print(f"Páginas de Cadastro: ✅ starter.html e professional.html configurados")
+    print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
+    
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
