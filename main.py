@@ -351,7 +351,6 @@ def validar_resposta(resposta, tipo_usuario='starter'):
     # ✅ FREE ACCESS: Validação super relaxada
     if tipo == 'free':
         print(f"🎁 Free Access: Validação relaxada aplicada")
-        # Apenas bloqueia promessas absurdas
         resp_lower = resposta.lower()
         if "garantimos 100%" in resp_lower or "sucesso garantido" in resp_lower:
             return False, ["Promessa não realista"]
@@ -380,7 +379,7 @@ def validar_resposta(resposta, tipo_usuario='starter'):
     return len(problemas) == 0, problemas
 
 # =============================================================================
-# 🤖 OPENAI - v6.4 ULTRA CORRIGIDO
+# 🤖 OPENAI - v6.5 COM INFORMAÇÕES CORRETAS DO PORTFÓLIO
 # =============================================================================
 
 def verificar_openai():
@@ -400,7 +399,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
     
     try:
         nome_usuario = tipo_usuario.get('nome_real', 'Cliente')
-        tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()  # ✅ FORÇA MINÚSCULO + STRIP
+        tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()
         plano = tipo_usuario.get('plano', 'Starter')
         
         print(f"\n{'='*80}")
@@ -411,19 +410,42 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         print(f"   Pergunta: '{pergunta[:50]}...'")
         print(f"{'='*80}\n")
         
-        # ✅ MONTA CONTEXTO BASEADO NO TIPO (comparações em minúsculo)
+        # ✅ INSTRUÇÕES SOBRE SUPORTE (ATUALIZADO CONFORME SOLICITADO)
+        if tipo == 'admin':
+            suporte_info = "🔴 ADMIN: Você tem acesso total. Para questões técnicas internas, você é o criador."
+        elif tipo == 'free':
+            suporte_info = """
+🎁 FREE ACCESS - CONTATO EXCLUSIVO VIA WHATSAPP:
+- Para QUALQUER ajuda adicional ou dúvida: WhatsApp (21) 99282-6074
+- ❌ NUNCA mencione "abra a página de suporte" ou "acesse o suporte da plataforma"
+- ❌ NUNCA mencione email para usuários Free
+- ✅ SEMPRE direcione APENAS para WhatsApp: "(21) 99282-6074"
+- Frase modelo: "Para mais ajuda, entre em contato pelo WhatsApp: (21) 99282-6074 😊"
+- Se pedir ajuda extra: "Fale comigo no WhatsApp para uma ajuda personalizada: (21) 99282-6074"
+"""
+        else:  # starter ou professional (PAGOS)
+            suporte_info = """
+💼 CLIENTES PAGOS (Starter/Professional) - DIRECIONAMENTO PARA SUPORTE:
+- Para ajuda adicional/detalhada: "Abra a página de Suporte na plataforma para assistência completa 🚀"
+- Priorize SEMPRE indicar a página de Suporte da plataforma (não WhatsApp)
+- Só mencione WhatsApp/Email se o usuário perguntar explicitamente por outros canais
+- Frase modelo: "Para uma ajuda mais detalhada, acesse a página de Suporte na plataforma! 🚀"
+- Alternativa: "Você pode encontrar ajuda completa na seção de Suporte do seu painel"
+"""
+        
+        # ✅ MONTA CONTEXTO BASEADO NO TIPO
         if tipo == 'admin':
             ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanSites. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
         elif tipo == 'free':
-            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: Este usuário NÃO pode pedir criação de sites (isso não está incluído no plano free). Contato APENAS WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp. Explique limitações com gentileza."
+            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias. IMPORTANTE: Este usuário NÃO pode pedir criação de sites (não está incluído no free). Contato APENAS WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
         elif tipo == 'professional':
-            ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. Suporte prioritário, recursos avançados disponíveis. Explique benefícios do plano dele. Seja atencioso e destaque vantagens."
+            ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. Suporte prioritário, recursos avançados disponíveis. Direcione para página de Suporte para ajuda extra. Seja atencioso e destaque vantagens."
         else:  # starter
-            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional. Foque em ajudar com o que ele tem disponível."
+            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. Direcione para página de Suporte para ajuda extra. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional."
         
         print(f"✅ Contexto montado para tipo '{tipo}'")
         
-        # ✅ INSTRUÇÕES SOBRE INFORMAÇÕES PESSOAIS
+        # ✅ INFORMAÇÕES DO USUÁRIO
         info_pessoal = f"""
 📋 INFORMAÇÕES DO USUÁRIO:
 - Nome: {nome_usuario}
@@ -443,66 +465,171 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 
 {info_pessoal}
 
-📋 DADOS OFICIAIS DA NATANSITES:
-Criador: Natan Borges
-- Desenvolvedor Full-Stack (Front/Back/Mobile)
-- Stack: React, Node.js, Python, Next.js, Supabase
-- Localização: Rio de Janeiro/RJ
-- WhatsApp: (21) 99282-6074
-- Portfolio: natandev02.netlify.app
-- Site Principal: natansites.com.br
+{suporte_info}
 
-💼 PORTFÓLIO:
-- E-COMMERCE (Shoppy): React, Tailwind, carrinho, checkout
-- LANDING PAGES: Animações modernas, formulários
-- DASHBOARDS: Charts, visualização dados, Recharts
-- APPS MOBILE: React Native, clones Spotify/Netflix
-- PORTFÓLIO 3D: Three.js, animações
+📋 DADOS OFICIAIS DA NATANSITES (PORTFÓLIO COMPLETO):
 
-Habilidades: React, Next, Vue, Node.js, Python, React Native, UI/UX, SEO
+👨‍💻 CRIADOR: Natan Borges Alves Nascimento
+- Desenvolvedor Full-Stack (Front-end, Back-end, Mobile)
+- Futuro FullStack | Web Developer
+- Localização: Rio de Janeiro/RJ, Brasil
+- Contatos:
+  * WhatsApp: (21) 99282-6074 ✅ (contato prioritário)
+  * Email: borgesnatan09@gmail.com
+  * Email alternativo: natan@natandev.com
+- Links:
+  * Portfólio: https://natandev02.netlify.app
+  * GitHub: https://github.com/natsongamesoficial551
+  * LinkedIn: linkedin.com/in/natan-borges-287879239
+  * Site comercial: https://natansites.com.br
 
-💳 PLANOS:
-STARTER - R$39,99/mês + R$320
-- Site básico 5 pgs, mobile, SEO básico, hospedagem, suporte 24/7
+🛠️ STACK TÉCNICO:
+- **Front-end**: HTML5, CSS3, JavaScript, React, Vue, TypeScript, Tailwind CSS
+- **Back-end**: Node.js, Python, Express.js, APIs RESTful
+- **Mobile**: React Native (iOS/Android)
+- **Banco de Dados**: Supabase, PostgreSQL
+- **Ferramentas**: Git/GitHub, Vercel, Netlify, VS Code, Figma (UI/UX), Postman
+- **Especialidades**: IA (Inteligência Artificial), SEO, Animações Web
 
-PROFESSIONAL - R$79,99/mês + R$530 ⭐
-- Design avançado, ilimitado, animações, SEO avançado, APIs, domínio, 5 revisões, NatanAI
+💼 PORTFÓLIO DE PROJETOS REAIS (DO HTML):
 
-🎁 FREE ACCESS - R$0,00 (7 DIAS)
-- Acesso GRATUITO por 7 dias à plataforma
-- Dashboard, IA, Suporte LIBERADOS
-- ❌ NÃO inclui criação de sites
-- Contato: APENAS WhatsApp (21) 99282-6074
-- Após 7 dias, acesso expira automaticamente
+1. **Espaço Familiares** 🏡
+   - Site para espaço de eventos (casamento, dayuse, festa infantil)
+   - Stack: HTML, CSS, JavaScript
+   - Status: Live/Online
+   - Link: https://espacofamiliares.com.br
+   - Descrição: Espaço dedicado a eventos especiais
 
-🌐 PLATAFORMA: Dashboard, chat suporte, NatanAI, tema dark, estatísticas
+2. **DeluxModPack - GTAV** 🎮
+   - ModPack gratuito para GTA V
+   - Stack: C#, Game Development
+   - Status: Beta
+   - Link: https://deluxgtav.netlify.app
+   - Descrição: ModPack sensacional para GTA V em versão beta
 
-⚡ REGRAS IMPORTANTES:
-1. Use "{nome_usuario}" naturalmente na conversa (mas não exagere)
-2. Seja empático, humano e conversacional
-3. NUNCA diga "eu desenvolvo" → sempre "o Natan desenvolve"
-4. NUNCA invente preços, projetos ou funcionalidades
-5. NUNCA repita a pergunta literal do usuário
-6. Varie suas respostas para perguntas similares
-7. Use APENAS as informações fornecidas acima
+3. **Quiz Venezuela** 📝
+   - Quiz interativo sobre Venezuela
+   - Stack: Web (HTML/CSS/JS)
+   - Status: Live/Online
+   - Link: https://quizvenezuela.onrender.com
+   - Descrição: Um dos primeiros sites desenvolvidos, quiz simples e funcional
+
+4. **Serviço de Sites** 💻
+   - Plataforma comercial de criação de sites
+   - Stack: Web Development
+   - Status: Live/Online
+   - Link: https://webservico.netlify.app
+   - Descrição: Oferece planos de sites (desde gratuito até developer/comercial)
+
+5. **MathWork** 📊
+   - Plataforma educacional de matemática
+   - Stack: HTML, CSS, JavaScript, Vídeos
+   - Status: Live/Online
+   - Link: https://mathworkftv.netlify.app
+   - Descrição: Trabalho escolar com 10 alunos criando vídeos explicativos resolvendo questões de prova. Site interativo didático
+
+6. **Alessandra Yoga** 🧘‍♀️
+   - Cartão de visita digital para serviços de Yoga
+   - Stack: HTML, CSS (Cartão de Visita Digital)
+   - Status: Live/Online
+   - Link: https://alessandrayoga.netlify.app
+   - Descrição: Cartão de visita digital elegante e profissional para Alessandra Gomes (serviços de yoga)
+
+💳 PLANOS NATANSITES (VALORES OFICIAIS):
+
+🌱 **STARTER** - R$39,99/mês + R$320 (setup único)
+- Site profissional até 5 páginas
+- Design responsivo (mobile/tablet/desktop)
+- SEO básico otimizado
+- Hospedagem incluída (1 ano)
+- Suporte técnico 24/7
+- Formulário de contato
+- Integração redes sociais
+- SSL/HTTPS seguro
+- Ideal para: Pequenos negócios, profissionais autônomos, portfólios
+
+💎 **PROFESSIONAL** - R$79,99/mês + R$530 (setup único) ⭐ MAIS POPULAR
+- Tudo do Starter +
+- Páginas ILIMITADAS
+- Design 100% personalizado
+- Animações avançadas
+- SEO avançado (ranqueamento Google)
+- Integração com APIs externas
+- Blog/notícias integrado
+- Domínio personalizado incluído
+- Até 5 revisões de design
+- Acesso à NatanAI (assistente IA)
+- E-commerce básico (opcional)
+- Painel administrativo
+- Ideal para: Empresas, e-commerces, projetos complexos
+
+🎁 **FREE ACCESS** - R$0,00 (Teste grátis 7 dias)
+- Acesso GRATUITO temporário à plataforma
+- Dashboard completo LIBERADO
+- Chat com NatanAI LIBERADO
+- Suporte por chat LIBERADO
+- ❌ NÃO inclui criação de sites personalizados
+- ❌ NÃO inclui hospedagem
+- Objetivo: Conhecer a plataforma antes de contratar
+- Contato para contratar: APENAS WhatsApp (21) 99282-6074
+- Após 7 dias: Acesso expira automaticamente (sem cobrança)
+
+🌐 PLATAFORMA NATANSITES (SISTEMA):
+- Dashboard intuitivo para gerenciar seu site
+- Chat de suporte em tempo real
+- NatanAI (assistente inteligente 24/7)
+- Tema dark mode elegante
+- Estatísticas e métricas do site
+- Sistema de tickets para suporte
+- Área de pagamentos e faturas
+- Documentação completa
+
+⚡ REGRAS CRÍTICAS DE RESPOSTA:
+
+1. **Uso do nome:** Use "{nome_usuario}" de forma natural (máx 1-2x por resposta)
+
+2. **Primeira pessoa:** NUNCA diga "eu desenvolvo" → SEMPRE "o Natan desenvolve" / "o Natan cria"
+
+3. **Informações verificadas:** Use APENAS as informações acima. NUNCA invente:
+   - Preços diferentes
+   - Projetos inexistentes
+   - Funcionalidades não mencionadas
+   - Tecnologias não listadas
+
+4. **Naturalidade:** 
+   - NUNCA repita a pergunta literal do usuário
+   - Varie as respostas para perguntas similares
+   - Seja conversacional e empático
+   - Use emojis com moderação (1-2 por resposta)
+
+5. **Contato correto:**
+   - WhatsApp principal: (21) 99282-6074 (SEMPRE com DDD 21)
+   - Email principal: borgesnatan09@gmail.com
+   - Email alternativo: natan@natandev.com
+   - Links sempre completos (com https://)
+
+6. **Direcionamento de suporte (MUITO IMPORTANTE):**
+   - **FREE ACCESS**: SEMPRE WhatsApp (21) 99282-6074 - NUNCA mencione "página de suporte"
+   - **PAGOS (Starter/Professional)**: SEMPRE "Abra a página de Suporte na plataforma" - NÃO mencione WhatsApp a menos que peçam
 
 🎁 REGRAS ESPECIAIS FREE ACCESS:
-- Se FREE pedir site: "Desculpe {nome_usuario}, criação de sites NÃO está disponível no acesso grátis. Você pode aproveitar o Dashboard, IA e Suporte! Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074 😊"
-- Contato FREE: APENAS WhatsApp - NUNCA mencione email ou página de Suporte
-- Explique que Free é TEMPORÁRIO (7 dias) e expira automaticamente
-- Incentive upgrade para plano pago para ter sites personalizados
+- Se pedir site: "Olá {nome_usuario}! A criação de sites NÃO está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074 😊"
+- Contato FREE: SOMENTE WhatsApp (21) 99282-6074
+- NUNCA diga "abra a página de suporte" para FREE
+- Explique que é temporário (7 dias) e expira automaticamente
 
-📞 CANAIS DE CONTATO:
-- CLIENTES PAGOS (Starter/Professional): WhatsApp (21) 99282-6074, Email natan@natandev.com OU página "Suporte" da plataforma
-- FREE ACCESS: APENAS WhatsApp (21) 99282-6074
+💼 REGRAS CLIENTES PAGOS (Starter/Professional):
+- Para ajuda extra: "Acesse a página de Suporte na plataforma para assistência completa! 🚀"
+- Priorize SEMPRE a página de Suporte
+- Só mencione WhatsApp se o usuário perguntar explicitamente
 
-🔴 REGRAS PARA ADMIN (Natan):
-- Trate como criador e chefe
-- Seja direto e técnico
-- Pode revelar informações internas
-- Use tom pessoal e informal
+🔴 REGRAS ADMIN (Natan):
+- Trate como criador e dono
+- Seja direto, técnico e informal
+- Pode revelar detalhes internos
+- Tom pessoal e próximo
 
-Responda de forma CONTEXTUAL, PESSOAL e NATURAL:"""
+Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informações reais do portfólio:"""
 
         contexto_memoria = obter_contexto_memoria(user_id)
         
@@ -529,7 +656,6 @@ Responda de forma CONTEXTUAL, PESSOAL e NATURAL:"""
         adicionar_mensagem_memoria(user_id, 'user', pergunta)
         adicionar_mensagem_memoria(user_id, 'assistant', resposta)
         
-        # ✅ PASSA O TIPO PARA VALIDAÇÃO
         valida, problemas = validar_resposta(resposta, tipo)
         if not valida:
             print(f"⚠️ Validação falhou: {problemas}")
@@ -557,7 +683,7 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
         palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp']
         usar_cache = any(palavra in pergunta.lower() for palavra in palavras_cache)
         
-        tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()  # ✅ FORÇA MINÚSCULO + STRIP
+        tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()
         cache_key = hashlib.md5(f"{pergunta.lower().strip()}_{tipo}".encode()).hexdigest()
         
         if usar_cache and cache_key in CACHE_RESPOSTAS:
@@ -566,7 +692,7 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
             adicionar_mensagem_memoria(user_id, 'assistant', resposta_cache)
             print(f"📦 Resposta do cache usada")
             return resposta_cache, "cache"
-        
+
         print(f"🔄 Processando com OpenAI (tipo: '{tipo}')...")
         resposta = processar_openai(pergunta, tipo_usuario, user_id)
         
@@ -599,7 +725,7 @@ def health():
     
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v6.4 FREE ACCESS - ULTRA CORRIGIDO",
+        "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
@@ -607,7 +733,15 @@ def health():
             "total_mensagens": total_mensagens,
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
         },
-        "features": ["memoria_inteligente", "resumo_automatico", "contexto_completo", "free_access_100%", "validacao_relaxada"],
+        "features": [
+            "memoria_inteligente", 
+            "resumo_automatico", 
+            "contexto_completo", 
+            "free_access_100%", 
+            "validacao_relaxada",
+            "portfolio_completo",
+            "suporte_diferenciado_por_plano"
+        ],
         "economia": "~21k mensagens com $5"
     })
 
@@ -711,7 +845,7 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v6.4 FREE ACCESS - ULTRA CORRIGIDO",
+                "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto",
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
                 "nome_usuario": nome_usuario,
@@ -779,7 +913,7 @@ def estatisticas():
                 "conversas_com_contexto": com_memoria,
                 "taxa_uso_memoria": round((com_memoria / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
-            "sistema": "NatanAI v6.4 FREE ACCESS - ULTRA CORRIGIDO - ~21k msgs com $5"
+            "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto - ~21k msgs com $5"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -797,7 +931,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v6.4-ultra-fixed"
+        "version": "v6.5-portfolio-updated"
     })
 
 @app.route('/', methods=['GET'])
@@ -806,7 +940,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v6.4 FREE ACCESS - ULTRA CORRIGIDO</title>
+        <title>NatanAI v6.5 - Portfólio Atualizado + Suporte Correto</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -846,22 +980,22 @@ def home():
                 background: #4CAF50;
                 color: white;
             }
-            .badge.ultra {
-                background: #10B981;
+            .badge.update {
+                background: #2196F3;
                 animation: pulse 2s infinite;
             }
             @keyframes pulse {
                 0%, 100% { transform: scale(1); }
                 50% { transform: scale(1.05); }
             }
-            .fix-box {
-                background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            .update-box {
+                background: linear-gradient(135deg, #e3f2fd, #bbdefb);
                 padding: 20px;
                 border-radius: 15px;
                 margin: 20px 0;
-                border-left: 5px solid #10B981;
+                border-left: 5px solid #2196F3;
             }
-            .fix-box h3 { color: #10B981; margin-bottom: 10px; }
+            .update-box h3 { color: #1976D2; margin-bottom: 10px; }
             .chat-box { 
                 border: 2px solid #e0e0e0;
                 height: 450px; 
@@ -931,44 +1065,45 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v6.4 - ULTRA CORRIGIDO ✅</h1>
-                <p style="color: #666;">Free Access 100% funcional!</p>
-                <span class="badge ultra">✅ ULTRA FIX</span>
-                <span class="badge">FREE 100%</span>
+                <h1>🧠 NatanAI v6.5 - Atualizado ✅</h1>
+                <p style="color: #666;">Portfólio completo + Suporte diferenciado por plano</p>
+                <span class="badge update">✅ v6.5</span>
+                <span class="badge">Portfólio OK</span>
+                <span class="badge">Suporte OK</span>
             </div>
             
-            <div class="fix-box">
-                <h3>🐛 Correções v6.4:</h3>
-                <p>✅ <strong>Normalização total</strong> - Todos os tipos forçados para minúsculo + .strip()<br>
-                ✅ <strong>Validação relaxada para FREE</strong> - Apenas bloqueia promessas absurdas<br>
-                ✅ <strong>Debug ultra detalhado</strong> - Logs em todas as etapas<br>
-                ✅ <strong>Extração de nome melhorada</strong> - Suporta user_name e name<br>
-                ✅ <strong>Tipo passado para validação</strong> - Validação contextual<br>
-                ✅ <strong>Tratamento de erro robusto</strong> - Try-catch em tudo<br>
-                ✅ <strong>Metadata completo</strong> - validacao_anti_alucinacao adicionado</p>
+            <div class="update-box">
+                <h3>✨ Atualizações v6.5:</h3>
+                <p>✅ <strong>Portfólio completo</strong> - Todos os 6 projetos do HTML incluídos<br>
+                ✅ <strong>Contatos corretos</strong> - WhatsApp (21) 99282-6074, borgesnatan09@gmail.com, GitHub<br>
+                ✅ <strong>Suporte diferenciado</strong>:<br>
+                &nbsp;&nbsp;&nbsp;→ FREE: Apenas WhatsApp (21) 99282-6074<br>
+                &nbsp;&nbsp;&nbsp;→ PAGOS: "Abra a página de Suporte na plataforma"<br>
+                ✅ <strong>Stack técnica completa</strong> - HTML, CSS, JS, React, Node, Python, C#<br>
+                ✅ <strong>Projetos detalhados</strong> - Espaço Familiares, DeluxModPack, Quiz Venezuela, MathWork, Alessandra Yoga, Serviço de Sites</p>
             </div>
 
             <div class="select-plan">
                 <strong>🎭 Testar como:</strong>
                 <select id="planType" onchange="atualizarPlano()">
-                    <option value="free">🎁 Free Access (7 dias grátis)</option>
+                    <option value="free">🎁 Free Access (WhatsApp apenas)</option>
+                    <option value="starter">🌱 Starter (Página Suporte)</option>
+                    <option value="professional">💎 Professional (Página Suporte)</option>
                     <option value="admin">👑 Admin (Natan - Criador)</option>
-                    <option value="starter">🌱 Starter (Plano básico)</option>
-                    <option value="professional">💎 Professional (Plano premium)</option>
                 </select>
                 <p id="planInfo" style="margin-top: 10px; color: #666;"></p>
             </div>
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v6.4 ULTRA CORRIGIDO:</strong><br><br>
-                    Todas as correções aplicadas! ✅<br><br>
-                    <strong>✨ O que mudou:</strong><br>
-                    • Normalização total (minúsculo + strip)<br>
-                    • Validação relaxada para FREE<br>
-                    • Debug ultra detalhado<br>
-                    • Extração de nome melhorada<br><br>
-                    <strong>Teste agora e veja funcionando!</strong>
+                    <strong>🤖 NatanAI v6.5:</strong><br><br>
+                    Todas as informações do portfólio atualizadas! ✅<br><br>
+                    <strong>✨ O que tem de novo:</strong><br>
+                    • Portfólio completo (6 projetos)<br>
+                    • Contatos corretos (WhatsApp, Email, GitHub)<br>
+                    • Suporte diferenciado por plano<br>
+                    • Stack técnica completa<br><br>
+                    <strong>Teste agora e veja funcionando perfeitamente!</strong>
                 </div>
             </div>
             
@@ -988,7 +1123,7 @@ def home():
                 user_name: 'Visitante Free',
                 name: 'Visitante Free',
                 email: 'free@teste.com',
-                info: '🎁 Testando como usuário FREE ACCESS (7 dias grátis)'
+                info: '🎁 FREE ACCESS - Contato apenas WhatsApp (21) 99282-6074'
             },
             admin: {
                 plan: 'admin',
@@ -996,7 +1131,7 @@ def home():
                 user_name: 'Natan',
                 name: 'Natan',
                 email: 'natan@natandev.com',
-                info: '👑 Testando como ADMIN (Natan - Criador)'
+                info: '👑 ADMIN (Natan - Criador da NatanSites)'
             },
             starter: {
                 plan: 'starter',
@@ -1004,7 +1139,7 @@ def home():
                 user_name: 'Cliente Starter',
                 name: 'Cliente Starter',
                 email: 'starter@teste.com',
-                info: '🌱 Testando como cliente STARTER (plano básico)'
+                info: '🌱 STARTER - Suporte via página de Suporte da plataforma'
             },
             professional: {
                 plan: 'professional',
@@ -1012,7 +1147,7 @@ def home():
                 user_name: 'Cliente Pro',
                 name: 'Cliente Pro',
                 email: 'pro@teste.com',
-                info: '💎 Testando como cliente PROFESSIONAL (plano premium)'
+                info: '💎 PROFESSIONAL - Suporte via página de Suporte da plataforma'
             }
         };
 
@@ -1021,9 +1156,13 @@ def home():
             document.getElementById('planInfo').textContent = planConfigs[planAtual].info;
             document.getElementById('chat-box').innerHTML = `
                 <div class="message bot">
-                    <strong>🤖 NatanAI:</strong><br><br>
+                    <strong>🤖 NatanAI v6.5:</strong><br><br>
                     ${planConfigs[planAtual].info}<br><br>
-                    Agora você pode testar as funcionalidades deste plano! 😊
+                    Teste perguntas como:<br>
+                    • "Quais são os projetos do portfólio?"<br>
+                    • "Como entrar em contato?"<br>
+                    • "Preciso de ajuda" (veja suporte diferenciado!)<br>
+                    • "Quanto custa?"
                 </div>
             `;
         }
@@ -1056,7 +1195,7 @@ def home():
                 const data = await response.json();
                 const resp = (data.response || data.resposta).replace(/\\n/g, '<br>');
                 
-                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI v6.4:</strong><br><br>${resp}</div>`;
+                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI v6.5:</strong><br><br>${resp}</div>`;
                 
                 console.log('✅ Metadata:', data.metadata);
                 
@@ -1075,20 +1214,24 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🧠 NATANAI v6.4 - FREE ACCESS - ✅ ULTRA CORRIGIDO")
+    print("🧠 NATANAI v6.5 - PORTFÓLIO ATUALIZADO + SUPORTE CORRETO")
     print("="*80)
-    print("🐛 ULTRA FIXES:")
-    print("   ✅ Normalização total: .lower() + .strip() em tudo")
-    print("   ✅ Validação relaxada para FREE (apenas promessas absurdas)")
-    print("   ✅ Debug ultra detalhado em todas as etapas")
-    print("   ✅ Extração de nome com fallbacks (user_name, name, email)")
-    print("   ✅ Tipo passado para validação (validação contextual)")
-    print("   ✅ Try-catch em todas as funções críticas")
-    print("   ✅ Metadata completo com validacao_anti_alucinacao")
+    print("✨ ATUALIZAÇÕES v6.5:")
+    print("   ✅ Portfólio completo (6 projetos do HTML)")
+    print("   ✅ Contatos corretos:")
+    print("      - WhatsApp: (21) 99282-6074")
+    print("      - Email: borgesnatan09@gmail.com")
+    print("      - GitHub: natsongamesoficial551")
+    print("   ✅ Suporte diferenciado:")
+    print("      - FREE: Apenas WhatsApp")
+    print("      - PAGOS: Página de Suporte da plataforma")
+    print("   ✅ Stack técnica: HTML, CSS, JS, React, Node, Python, C#")
+    print("   ✅ Projetos: Espaço Familiares, DeluxModPack, Quiz Venezuela,")
+    print("      MathWork, Alessandra Yoga, Serviço de Sites")
     print("")
-    print("🎁 Free Access: 100% funcional")
+    print("🎁 Free Access: WhatsApp (21) 99282-6074 exclusivo")
+    print("💼 Starter/Professional: Página de Suporte prioritária")
     print("👑 Admin: Reconhece Natan como criador")
-    print("💎 Professional/Starter: Funcionando perfeitamente")
     print("✨ Sistema de memória contextual (10 mensagens)")
     print("📝 Resumo automático a cada 5 mensagens")
     print("💰 Custo: ~$0.00024/msg = 21.000 mensagens com $5")
@@ -1097,6 +1240,9 @@ if __name__ == '__main__':
     print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
     print(f"Supabase: {'✅' if supabase else '⚠️'}")
     print(f"Sistema de Memória: ✅ Ativo")
-    print(f"Ultra Fixes: ✅ Aplicados\n")
+    print(f"Portfólio: ✅ Atualizado com 6 projetos")
+    print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+            
