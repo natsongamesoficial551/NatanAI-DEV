@@ -379,7 +379,7 @@ def validar_resposta(resposta, tipo_usuario='starter'):
     return len(problemas) == 0, problemas
 
 # =============================================================================
-# 🤖 OPENAI - v6.5 COM INFORMAÇÕES CORRETAS DO PORTFÓLIO
+# 🤖 OPENAI - v7.0 COM TAF SEM TABU + PÁGINAS DE CADASTRO
 # =============================================================================
 
 def verificar_openai():
@@ -410,7 +410,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         print(f"   Pergunta: '{pergunta[:50]}...'")
         print(f"{'='*80}\n")
         
-        # ✅ INSTRUÇÕES SOBRE SUPORTE (ATUALIZADO CONFORME SOLICITADO)
+        # ✅ INSTRUÇÕES SOBRE SUPORTE
         if tipo == 'admin':
             suporte_info = "🔴 ADMIN: Você tem acesso total. Para questões técnicas internas, você é o criador."
         elif tipo == 'free':
@@ -432,10 +432,6 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Se perguntar "preciso de ajuda": "Para falar com o Natan pessoalmente, acesse a página Suporte na plataforma! Ele vai te atender diretamente 🚀"
 - NUNCA diga "falar comigo" ou "estou aqui" - você é a IA, não o Natan
 - SEMPRE deixe claro que a página Suporte é com o NATAN (pessoa real)
-- Frases modelo:
-  * "Acesse a página Suporte para falar diretamente com o Natan!"
-  * "O Natan está disponível na seção Suporte da plataforma 😊"
-  * "Para atendimento pessoal, abra a página Suporte e fale com o Natan!"
 """
         
         # ✅ MONTA CONTEXTO BASEADO NO TIPO
@@ -496,7 +492,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - **Ferramentas**: Git/GitHub, Vercel, Netlify, VS Code, Figma (UI/UX), Postman
 - **Especialidades**: IA (Inteligência Artificial), SEO, Animações Web
 
-💼 PORTFÓLIO DE PROJETOS REAIS (DO HTML):
+💼 PORTFÓLIO DE PROJETOS REAIS:
 
 1. **Espaço Familiares** 🏡
    - Site para espaço de eventos (casamento, dayuse, festa infantil)
@@ -519,12 +515,12 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Link: https://quizvenezuela.onrender.com
    - Descrição: Um dos primeiros sites desenvolvidos, quiz simples e funcional
 
-4. **Serviço de Sites** 💻
-   - Plataforma comercial de criação de sites
-   - Stack: Web Development
+4. **Plataforma NatanSites** 💻
+   - Plataforma comercial completa de criação de sites
+   - Stack: HTML, CSS, JavaScript, Python (Backend)
    - Status: Live/Online
-   - Link: https://webservico.netlify.app
-   - Descrição: Oferece planos de sites (desde gratuito até developer/comercial)
+   - Link: https://natansites.com.br
+   - Descrição: Plataforma completa para segurança e confiança do serviço webdeveloper
 
 5. **MathWork** 📊
    - Plataforma educacional de matemática
@@ -539,6 +535,13 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Status: Live/Online
    - Link: https://alessandrayoga.netlify.app
    - Descrição: Cartão de visita digital elegante e profissional para Alessandra Gomes (serviços de yoga)
+
+7. **TAF Sem Tabu** 🏃‍♂️💪 (NOVO PROJETO!)
+   - OnePage sobre E-Book de preparação para TAF (Teste de Aptidão Física)
+   - Stack: HTML, CSS, JavaScript
+   - Status: Live/Online
+   - Link: https://tafsemtabu.com.br
+   - Descrição: Site de venda/divulgação de E-Book educacional sobre Teste de Aptidão Física Sem Tabu, com informações sobre como se preparar para concursos militares e testes físicos
 
 💳 PLANOS NATANSITES (VALORES OFICIAIS):
 
@@ -579,6 +582,67 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Contato para contratar: APENAS WhatsApp (21) 99282-6074
 - Após 7 dias: Acesso expira automaticamente (sem cobrança)
 
+📄 PÁGINAS DE CADASTRO DA NATANSITES (STARTER.HTML E PROFESSIONAL.HTML):
+
+🔹 **STARTER.HTML** (Cadastro Plano Starter - R$359,99)
+- Página de cadastro rápido para o plano Starter
+- **Formulário com campos**:
+  * Nome Completo (obrigatório)
+  * Data de Nascimento (idade mínima: 13 anos)
+  * CPF (com máscara automática: 000.000.000-00)
+- **QR Code PIX** para pagamento de R$359,99
+- **Código PIX Copia e Cola** disponível para facilitar o pagamento
+- Sistema de envio automático por EmailJS para o Natan receber os dados
+- Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
+- Design moderno com animações e tema azul
+- Totalmente responsivo (mobile, tablet, desktop)
+
+🔹 **PROFESSIONAL.HTML** (Cadastro Plano Professional - R$609,99)
+- Página de cadastro rápido para o plano Professional
+- **Formulário com campos**:
+  * Nome Completo (obrigatório)
+  * Data de Nascimento (idade mínima: 13 anos)
+  * CPF (com máscara automática: 000.000.000-00)
+- **QR Code PIX** para pagamento de R$609,99
+- **Código PIX Copia e Cola** disponível para facilitar o pagamento
+- Sistema de envio automático por EmailJS para o Natan receber os dados
+- Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
+- Design moderno com animações e tema azul
+- Totalmente responsivo (mobile, tablet, desktop)
+
+⚙️ **COMO FUNCIONAM AS PÁGINAS DE CADASTRO:**
+
+1. **Acesso às páginas:**
+   - FREE: Pode visualizar mas NÃO pode se cadastrar (precisa contratar primeiro via WhatsApp)
+   - STARTER: Acessa starter.html para contratar/renovar
+   - PROFESSIONAL: Acessa professional.html para contratar/renovar
+   - ADMIN: Acesso total a ambas as páginas
+
+2. **Processo de cadastro:**
+   - Cliente preenche: Nome, Data de Nascimento, CPF
+   - Cliente paga via QR Code PIX ou Código Copia e Cola
+   - Sistema envia dados automaticamente para o email do Natan via EmailJS
+   - Natan recebe notificação e cria a conta manualmente
+   - Cliente aguarda de 10 minutos a 2 horas
+   - Cliente recebe confirmação por email
+
+3. **Validações automáticas:**
+   - Idade mínima: 13 anos
+   - CPF com formatação automática
+   - Todos os campos obrigatórios
+   - Validação de CPF simples (11 dígitos)
+
+4. **Diferenças entre Starter e Professional:**
+   - STARTER: QR Code de R$359,99 (setup R$320 + 1º mês R$39,99)
+   - PROFESSIONAL: QR Code de R$609,99 (setup R$530 + 1º mês R$79,99)
+   - Formulários idênticos, apenas valores e QR Codes diferentes
+
+5. **Como explicar para os clientes:**
+   - "Para contratar o plano Starter, acesse a página starter.html, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
+   - "Para contratar o plano Professional, acesse a página professional.html, preencha seus dados, pague via PIX e aguarde a criação da sua conta!"
+   - "O pagamento é via PIX: escaneie o QR Code ou copie o código Copia e Cola!"
+   - "Após o pagamento, você receberá sua conta em até 2 horas!"
+
 🌐 PLATAFORMA NATANSITES (SISTEMA):
 - Dashboard intuitivo para gerenciar seu site
 - Chat de suporte em tempo real
@@ -617,8 +681,15 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - **FREE ACCESS**: SEMPRE WhatsApp (21) 99282-6074 - NUNCA mencione "página de suporte"
    - **PAGOS (Starter/Professional)**: SEMPRE "Abra a página de Suporte na plataforma" - NÃO mencione WhatsApp a menos que peçam
 
+7. **PÁGINAS DE CADASTRO (starter.html e professional.html):**
+   - Se perguntar "como contratar Starter": "Acesse a página starter.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$359,99) e aguarde até 2 horas para a criação da conta!"
+   - Se perguntar "como contratar Professional": "Acesse a página professional.html, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$609,99) e aguarde até 2 horas para a criação da conta!"
+   - Se perguntar sobre o formulário: "O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!"
+   - Se perguntar quanto tempo demora: "Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!"
+
 🎁 REGRAS ESPECIAIS FREE ACCESS:
 - Se pedir site: "Olá {nome_usuario}! A criação de sites NÃO está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074 😊"
+- Se perguntar sobre starter.html ou professional.html: "Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!"
 - Contato FREE: SOMENTE WhatsApp (21) 99282-6074
 - NUNCA diga "abra a página de suporte" para FREE
 - Explique que é temporário (7 dias) e expira automaticamente
@@ -627,22 +698,29 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Página "💬 Suporte" = Chat PESSOAL com o Natan (pessoa real, NÃO IA)
 - Se perguntar "como falar com Natan": "Para falar diretamente com o Natan, acesse a página Suporte no site! Lá ele te atende pessoalmente 😊"
 - Se perguntar "preciso de ajuda": "Acesse a página Suporte para falar com o Natan pessoalmente! 🚀"
+- Se perguntar sobre renovação: "Para renovar seu plano, você pode acessar a página starter.html ou professional.html novamente, ou falar com o Natan na página Suporte!"
 - NUNCA diga "falar comigo" - você é a IA, o Natan é uma pessoa real
 - SEMPRE deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
 - Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
-
-🎁 REGRAS FREE ACCESS:
-- FREE NÃO tem acesso ao chat de Suporte da plataforma
-- NUNCA diga "acesse a página Suporte" para FREE
-- SEMPRE: "Para falar com o Natan, entre em contato pelo WhatsApp: (21) 99282-6074 😊"
-- Priorize SEMPRE a página de Suporte
-- Só mencione WhatsApp se o usuário perguntar explicitamente
 
 🔴 REGRAS ADMIN (Natan):
 - Trate como criador e dono
 - Seja direto, técnico e informal
 - Pode revelar detalhes internos
 - Tom pessoal e próximo
+- Explique detalhes técnicos sobre starter.html e professional.html se perguntado
+- Forneça informações sobre EmailJS, validações, etc.
+
+📱 PROJETO TAF SEM TABU - INFORMAÇÕES DETALHADAS:
+- Site OnePage sobre E-Book de preparação para TAF (Teste de Aptidão Física)
+- Público-alvo: Candidatos a concursos militares, pessoas que querem passar em testes físicos
+- Conteúdo: Informações sobre o E-Book "TAF Sem Tabu" que ensina preparação física
+- Design: OnePage moderno, clean, focado em conversão
+- Objetivo: Vender/divulgar o E-Book educacional
+- Diferencial: Aborda o TAF de forma direta e sem tabus
+- Stack: HTML, CSS, JavaScript puro
+- Status: Live/Online
+- Link: https://tafsemtabu.com.br
 
 Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informações reais do portfólio:"""
 
@@ -695,7 +773,7 @@ Responda de forma CONTEXTUAL, PESSOAL, NATURAL e PRECISA baseando-se nas informa
 
 def gerar_resposta(pergunta, tipo_usuario, user_id):
     try:
-        palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp']
+        palavras_cache = ['preço', 'quanto custa', 'plano', 'contato', 'whatsapp', 'cadastro', 'starter.html', 'professional.html']
         usar_cache = any(palavra in pergunta.lower() for palavra in palavras_cache)
         
         tipo = str(tipo_usuario.get('tipo', 'starter')).lower().strip()
@@ -740,7 +818,7 @@ def health():
     
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto",
+        "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
@@ -754,8 +832,10 @@ def health():
             "contexto_completo", 
             "free_access_100%", 
             "validacao_relaxada",
-            "portfolio_completo",
-            "suporte_diferenciado_por_plano"
+            "portfolio_completo_7_projetos",
+            "suporte_diferenciado_por_plano",
+            "paginas_cadastro_starter_professional",
+            "taf_sem_tabu_projeto"
         ],
         "economia": "~21k mensagens com $5"
     })
@@ -860,7 +940,7 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto",
+                "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro",
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
                 "nome_usuario": nome_usuario,
@@ -928,7 +1008,7 @@ def estatisticas():
                 "conversas_com_contexto": com_memoria,
                 "taxa_uso_memoria": round((com_memoria / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
-            "sistema": "NatanAI v6.5 - Portfólio Atualizado + Suporte Correto - ~21k msgs com $5"
+            "sistema": "NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro - ~21k msgs com $5"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -946,7 +1026,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v6.5-portfolio-updated"
+        "version": "v7.0-taf-sem-tabu-cadastro"
     })
 
 @app.route('/', methods=['GET'])
@@ -955,7 +1035,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v6.5 - Portfólio Atualizado + Suporte Correto</title>
+        <title>NatanAI v7.0 - TAF Sem Tabu + Páginas de Cadastro</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -998,6 +1078,9 @@ def home():
             .badge.update {
                 background: #2196F3;
                 animation: pulse 2s infinite;
+            }
+            .badge.new {
+                background: #FF5722;
             }
             @keyframes pulse {
                 0%, 100% { transform: scale(1); }
@@ -1080,22 +1163,24 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v6.5 - Atualizado ✅</h1>
-                <p style="color: #666;">Portfólio completo + Suporte diferenciado por plano</p>
-                <span class="badge update">✅ v6.5</span>
-                <span class="badge">Portfólio OK</span>
-                <span class="badge">Suporte OK</span>
+                <h1>🧠 NatanAI v7.0 - Atualizado ✅</h1>
+                <p style="color: #666;">TAF Sem Tabu + Páginas de Cadastro</p>
+                <span class="badge update">✅ v7.0</span>
+                <span class="badge new">🆕 TAF Sem Tabu</span>
+                <span class="badge new">📄 Cadastro</span>
+                <span class="badge">7 Projetos</span>
             </div>
             
             <div class="update-box">
-                <h3>✨ Atualizações v6.5:</h3>
-                <p>✅ <strong>Portfólio completo</strong> - Todos os 6 projetos do HTML incluídos<br>
-                ✅ <strong>Contatos corretos</strong> - WhatsApp (21) 99282-6074, borgesnatan09@gmail.com, GitHub<br>
-                ✅ <strong>Suporte diferenciado</strong>:<br>
-                &nbsp;&nbsp;&nbsp;→ FREE: Apenas WhatsApp (21) 99282-6074<br>
-                &nbsp;&nbsp;&nbsp;→ PAGOS: "Abra a página de Suporte na plataforma"<br>
-                ✅ <strong>Stack técnica completa</strong> - HTML, CSS, JS, React, Node, Python, C#<br>
-                ✅ <strong>Projetos detalhados</strong> - Espaço Familiares, DeluxModPack, Quiz Venezuela, MathWork, Alessandra Yoga, Serviço de Sites</p>
+                <h3>✨ Atualizações v7.0:</h3>
+                <p>
+                🆕 <strong>Projeto TAF Sem Tabu</strong> - OnePage sobre E-Book de TAF adicionado ao portfólio<br>
+                📄 <strong>Páginas starter.html e professional.html</strong> - Formulários de cadastro com QR Code PIX<br>
+                💳 <strong>Sistema de pagamento</strong> - QR Code e Código Copia e Cola para facilitar<br>
+                📧 <strong>EmailJS integrado</strong> - Envio automático dos dados para o Natan<br>
+                ⏱️ <strong>Processo completo</strong> - Da contratação à criação da conta em até 2 horas<br>
+                ✅ <strong>7 projetos no portfólio</strong> - Todos os projetos atualizados e funcionando
+                </p>
             </div>
 
             <div class="select-plan">
@@ -1111,14 +1196,14 @@ def home():
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v6.5:</strong><br><br>
-                    Todas as informações do portfólio atualizadas! ✅<br><br>
-                    <strong>✨ O que tem de novo:</strong><br>
-                    • Portfólio completo (6 projetos)<br>
-                    • Contatos corretos (WhatsApp, Email, GitHub)<br>
-                    • Suporte diferenciado por plano<br>
-                    • Stack técnica completa<br><br>
-                    <strong>Teste agora e veja funcionando perfeitamente!</strong>
+                    <strong>🤖 NatanAI v7.0:</strong><br><br>
+                    Todas as informações atualizadas! ✅<br><br>
+                    <strong>✨ Novidades:</strong><br>
+                    • Projeto TAF Sem Tabu no portfólio<br>
+                    • Páginas de cadastro (starter.html e professional.html)<br>
+                    • Sistema de pagamento via PIX com QR Code<br>
+                    • 7 projetos completos no portfólio<br><br>
+                    <strong>Teste perguntas sobre cadastro, TAF Sem Tabu e mais!</strong>
                 </div>
             </div>
             
@@ -1171,13 +1256,15 @@ def home():
             document.getElementById('planInfo').textContent = planConfigs[planAtual].info;
             document.getElementById('chat-box').innerHTML = `
                 <div class="message bot">
-                    <strong>🤖 NatanAI v6.5:</strong><br><br>
+                    <strong>🤖 NatanAI v7.0:</strong><br><br>
                     ${planConfigs[planAtual].info}<br><br>
-                    Teste perguntas como:<br>
-                    • "Quais são os projetos do portfólio?"<br>
-                    • "Como entrar em contato?"<br>
-                    • "Preciso de ajuda" (veja suporte diferenciado!)<br>
-                    • "Quanto custa?"
+                    <strong>Teste perguntas como:</strong><br>
+                    • "O que é o projeto TAF Sem Tabu?"<br>
+                    • "Como faço para contratar o plano Starter?"<br>
+                    • "Como funciona o starter.html?"<br>
+                    • "Qual a diferença entre starter.html e professional.html?"<br>
+                    • "Quais são os 7 projetos do portfólio?"<br>
+                    • "Quanto tempo demora para criar minha conta?"
                 </div>
             `;
         }
@@ -1208,54 +1295,4 @@ def home():
                 });
                 
                 const data = await response.json();
-                const resp = (data.response || data.resposta).replace(/\\n/g, '<br>');
-                
-                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI v6.5:</strong><br><br>${resp}</div>`;
-                
-                console.log('✅ Metadata:', data.metadata);
-                
-            } catch (error) {
-                chatBox.innerHTML += `<div class="message bot"><strong>🤖 NatanAI:</strong><br>Erro: ${error.message}</div>`;
-                console.error('❌ Erro:', error);
-            }
-            
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-        </script>
-    </body>
-    </html>
-    """
-    return render_template_string(html)
-
-if __name__ == '__main__':
-    print("\n" + "="*80)
-    print("🧠 NATANAI v6.5 - PORTFÓLIO ATUALIZADO + SUPORTE CORRETO")
-    print("="*80)
-    print("✨ ATUALIZAÇÕES v6.5:")
-    print("   ✅ Portfólio completo (6 projetos do HTML)")
-    print("   ✅ Contatos corretos:")
-    print("      - WhatsApp: (21) 99282-6074")
-    print("      - Email: borgesnatan09@gmail.com")
-    print("      - GitHub: natsongamesoficial551")
-    print("   ✅ Suporte diferenciado:")
-    print("      - FREE: Apenas WhatsApp")
-    print("      - PAGOS: Página de Suporte da plataforma")
-    print("   ✅ Stack técnica: HTML, CSS, JS, React, Node, Python, C#")
-    print("   ✅ Projetos: Espaço Familiares, DeluxModPack, Quiz Venezuela,")
-    print("      MathWork, Alessandra Yoga, Serviço de Sites")
-    print("")
-    print("🎁 Free Access: WhatsApp (21) 99282-6074 exclusivo")
-    print("💼 Starter/Professional: Página de Suporte prioritária")
-    print("👑 Admin: Reconhece Natan como criador")
-    print("✨ Sistema de memória contextual (10 mensagens)")
-    print("📝 Resumo automático a cada 5 mensagens")
-    print("💰 Custo: ~$0.00024/msg = 21.000 mensagens com $5")
-    print("="*80 + "\n")
-    
-    print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
-    print(f"Supabase: {'✅' if supabase else '⚠️'}")
-    print(f"Sistema de Memória: ✅ Ativo")
-    print(f"Portfólio: ✅ Atualizado com 6 projetos")
-    print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
-    
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+                const resp = (data.response || data.resposta).
