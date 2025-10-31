@@ -28,12 +28,12 @@ OPENAI_MODEL = "gpt-4o-mini"
 RENDER_URL = os.getenv("RENDER_URL", "")
 
 # ============================================
-# 📊 LIMITES DE MENSAGENS POR PLANO
+# 📊 LIMITES DE MENSAGENS POR PLANO (ATUALIZADOS v7.3)
 # ============================================
 LIMITES_MENSAGENS = {
-    'free': 75,           # 🎁 75 mensagens para teste (7 dias)
-    'starter': 1000,      # 🌱 1000 mensagens/mês
-    'professional': 5000, # 💎 5000 mensagens/mês
+    'free': 100,          # 🎁 100 mensagens/semana para teste
+    'starter': 1250,      # 🌱 1.250 mensagens/mês
+    'professional': 5000, # 💎 5.000 mensagens/mês
     'admin': float('inf') # 👑 Ilimitado
 }
 
@@ -140,7 +140,7 @@ def verificar_limite_mensagens(user_id, tipo_plano):
     return pode_enviar, mensagens_usadas, limite, max(0, mensagens_restantes)
 
 def resetar_contador_usuario(user_id):
-    """Reseta o contador de mensagens de um usuário (para renovação mensal)"""
+    """Reseta o contador de mensagens de um usuário (para renovação mensal/semanal)"""
     with contador_lock:
         if user_id in CONTADOR_MENSAGENS:
             CONTADOR_MENSAGENS[user_id]['total'] = 0
@@ -154,18 +154,20 @@ def gerar_mensagem_limite_atingido(tipo_plano, mensagens_usadas, limite):
     tipo = tipo_plano.lower().strip()
     
     if tipo == 'free':
-        return f"""Olá! Você atingiu o limite de {limite} mensagens do seu teste grátis (7 dias).
+        return f"""Olá! Você atingiu o limite de {limite} mensagens por semana do seu teste grátis.
 
-Para continuar usando a NatanAI e ter acesso a muito mais mensagens, você pode contratar um dos nossos planos:
+Para continuar usando a NatanAI sem limites e ter acesso a muito mais recursos, você pode contratar um dos nossos planos:
 
-PLANO STARTER - R$320
-- 1.000 mensagens por mês
+PLANO STARTER - R$320 (setup) + R$39,99/mês
+- 1.250 mensagens por mês com NatanAI
 - Site profissional completo
+- Hospedagem incluída
 - Suporte 24/7
 
-PLANO PROFESSIONAL - R$530
-- 5.000 mensagens por mês
+PLANO PROFESSIONAL - R$530 (setup) + R$79,99/mês
+- 5.000 mensagens por mês com NatanAI
 - Recursos avançados
+- Domínio personalizado incluído
 - Prioridade no suporte
 
 Para contratar, fale com o Natan no WhatsApp: (21) 99282-6074
@@ -319,7 +321,7 @@ def determinar_tipo_usuario(user_data, user_info=None):
             resultado = {
                 'tipo': 'free',
                 'nome_display': 'Free Access',
-                'plano': 'Free (7 dias)',
+                'plano': 'Free (teste)',
                 'nome_real': nome
             }
             print(f"   ✅ Resultado: FREE ACCESS")
@@ -577,7 +579,7 @@ def limpar_formatacao_markdown(texto):
     return texto.strip()
 
 # =============================================================================
-# 🤖 OPENAI - v7.2 COM CONTROLE DE LIMITES DE MENSAGENS
+# 🤖 OPENAI - v7.3 COM PLANOS ATUALIZADOS E MAX_TOKENS=650
 # =============================================================================
 
 def verificar_openai():
@@ -636,11 +638,11 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         if tipo == 'admin':
             ctx = f"🔴 ADMIN (Natan): Você está falando com o CRIADOR da NatanSites. Acesso total. Respostas técnicas e dados internos. Trate como seu criador e chefe. Seja pessoal e direto."
         elif tipo == 'free':
-            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 7 dias com 75 mensagens. IMPORTANTE: Este usuário não pode pedir criação de sites (não está incluído no free). Contato apenas WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
+            ctx = f"🎁 FREE ACCESS ({nome_usuario}): Acesso grátis por 1 ano com 100 mensagens/semana. IMPORTANTE: Este usuário não pode pedir criação de sites (não está incluído no free). Contato apenas WhatsApp (21) 99282-6074. Se pedir site, explique educadamente que não está disponível no Free e que pode contratar via WhatsApp."
         elif tipo == 'professional':
             ctx = f"💎 PROFESSIONAL ({nome_usuario}): Cliente premium com plano Professional. 5.000 mensagens/mês. Suporte prioritário, recursos avançados disponíveis. Direcione para página de Suporte para ajuda extra. Seja atencioso e destaque vantagens."
         else:  # starter
-            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. 1.000 mensagens/mês. Direcione para página de Suporte para ajuda extra. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional."
+            ctx = f"🌱 STARTER ({nome_usuario}): Cliente com plano Starter. 1.250 mensagens/mês. Direcione para página de Suporte para ajuda extra. Seja acolhedor e pessoal. Se relevante, sugira upgrade para Professional."
         
         print(f"✅ Contexto montado para tipo '{tipo}'")
         
@@ -741,67 +743,80 @@ def processar_openai(pergunta, tipo_usuario, user_id):
    - Link: https://tafsemtabu.com.br
    - Descrição: Site de venda/divulgação de E-Book educacional sobre Teste de Aptidão Física Sem Tabu, com informações sobre como se preparar para concursos militares e testes físicos
 
-💳 PLANOS NATANSITES (VALORES OFICIAIS):
+💳 PLANOS NATANSITES (VALORES OFICIAIS ATUALIZADOS v7.3):
 
-STARTER - R$320 (setup único)
-- Site profissional até 5 páginas
-- Design responsivo (mobile/tablet/desktop)
-- SEO básico otimizado
+FREE - R$0,00 (Teste Grátis - Contrato de 1 ano)
+- Acesso à plataforma demo
+- Criação de sites simples e básicos
+- Sem uso comercial
+- Sem hospedagem
+- Sem domínio personalizado
+- Marca D'água presente
+- NatanAI: 100 mensagens/semana
+- Contrato de 1 ano
+- Objetivo: Conhecer a plataforma antes de contratar
+- Contato para contratar: apenas WhatsApp (21) 99282-6074
+
+STARTER - R$320,00 (setup único) + R$39,99/mês
+- Acesso à plataforma completa
+- Site responsivo básico até 5 páginas
+- Design moderno e limpo
+- Otimização para mobile
+- Uso comercial permitido
 - Hospedagem incluída (1 ano)
-- Suporte técnico 24/7
+- Sem domínio personalizado
+- Sem marca D'água
+- Suporte pela plataforma 24/7
+- SEO básico otimizado
 - Formulário de contato
 - Integração redes sociais
 - SSL/HTTPS seguro
-- 1.000 mensagens com NatanAI por mês
+- NatanAI: 1.250 mensagens/mês
+- Contrato de 1 ano
 - Ideal para: Pequenos negócios, profissionais autônomos, portfólios
 
-PROFESSIONAL - R$530 (setup único) - MAIS POPULAR
+PROFESSIONAL - R$530,00 (setup único) + R$79,99/mês - MAIS POPULAR
 - Tudo do Starter +
 - Páginas ilimitadas
-- Design 100% personalizado
-- Animações avançadas
+- Design 100% personalizado avançado
+- Animações e interatividade
 - SEO avançado (ranqueamento Google)
 - Integração com APIs externas
 - Blog/notícias integrado
 - Domínio personalizado incluído
 - Até 5 revisões de design
-- Acesso à NatanAI (5.000 mensagens/mês)
+- Formulários de contato
+- Suporte prioritário 24/7
+- IA Inclusa - Opcional
 - E-commerce básico (opcional)
 - Painel administrativo
+- NatanAI: 5.000 mensagens/mês
+- Contrato de 1 ano
 - Ideal para: Empresas, e-commerces, projetos complexos
-
-FREE ACCESS - R$0,00 (Teste grátis 7 dias)
-- Acesso gratuito temporário à plataforma
-- Dashboard completo liberado
-- Chat com NatanAI liberado (75 mensagens totais)
-- Suporte por chat liberado
-- Não inclui criação de sites personalizados
-- Não inclui hospedagem
-- Objetivo: Conhecer a plataforma antes de contratar
-- Contato para contratar: apenas WhatsApp (21) 99282-6074
-- Após 7 dias: Acesso expira automaticamente (sem cobrança)
 
 📄 PÁGINAS DE CADASTRO DA NATANSITES:
 
-Plano Starter (Cadastro Plano Starter - R$320,00)
+Plano Starter (Cadastro Plano Starter - R$320,00 setup)
 - Página de cadastro rápido para o plano Starter
 - Formulário com campos: Nome Completo, Data de Nascimento (idade mínima: 13 anos), CPF (com máscara automática: 000.000.000-00)
-- QR Code PIX para pagamento de R$320,00
+- QR Code PIX para pagamento de R$320,00 (setup)
 - Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
+- Após o setup, mensalidade de R$39,99/mês
 
-Plano Professional (Cadastro Plano Professional - R$530,00)
+Plano Professional (Cadastro Plano Professional - R$530,00 setup)
 - Página de cadastro rápido para o plano Professional
 - Formulário com campos: Nome Completo, Data de Nascimento (idade mínima: 13 anos), CPF (com máscara automática: 000.000.000-00)
-- QR Code PIX para pagamento de R$530,00
+- QR Code PIX para pagamento de R$530,00 (setup)
 - Código PIX Copia e Cola disponível para facilitar o pagamento
 - Sistema de envio automático por EmailJS para o Natan receber os dados
 - Aviso: Aguardar de 10 minutos a 2 horas para criação da conta
 - Design moderno com animações e tema azul
 - Totalmente responsivo (mobile, tablet, desktop)
+- Após o setup, mensalidade de R$79,99/mês
 
 ⚙️ COMO FUNCIONAM AS PÁGINAS DE CADASTRO:
 
@@ -826,13 +841,13 @@ Plano Professional (Cadastro Plano Professional - R$530,00)
    - Validação de CPF simples (11 dígitos)
 
 4. Diferenças entre Starter e Professional:
-   - STARTER: QR Code de R$320,00 (setup R$320)
-   - PROFESSIONAL: QR Code de R$530,00 (setup R$530)
+   - STARTER: QR Code de R$320,00 (setup) + R$39,99/mês
+   - PROFESSIONAL: QR Code de R$530,00 (setup) + R$79,99/mês
    - Formulários idênticos, apenas valores e QR Codes diferentes
 
 5. Como explicar para os clientes:
-   - Para contratar o plano Starter, acesse a página pelo botão escolher starter, preencha seus dados, pague via PIX e aguarde a criação da sua conta!
-   - Para contratar o plano Professional, acesse a página escolher professional, preencha seus dados, pague via PIX e aguarde a criação da sua conta!
+   - Para contratar o plano Starter, acesse a página pelo botão escolher starter, preencha seus dados, pague via PIX (R$320,00 setup) e aguarde a criação da sua conta! Após isso, será cobrado R$39,99 mensalmente.
+   - Para contratar o plano Professional, acesse a página escolher professional, preencha seus dados, pague via PIX (R$530,00 setup) e aguarde a criação da sua conta! Após isso, será cobrado R$79,99 mensalmente.
    - O pagamento é via PIX: escaneie o QR Code ou copie o código Copia e Cola!
    - Após o pagamento, você receberá sua conta em até 2 horas!
 
@@ -875,18 +890,18 @@ Plano Professional (Cadastro Plano Professional - R$530,00)
    - PAGOS (Starter/Professional): Sempre Abra a página de Suporte na plataforma - Não mencione WhatsApp a menos que peçam
 
 7. PÁGINAS DE CADASTRO:
-   - Se perguntar como contratar Starter: Acesse clicando no botão escolher starter, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00) e aguarde até 2 horas para a criação da conta!
-   - Se perguntar como contratar Professional: Acesse no botão escolher professional, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00) e aguarde até 2 horas para a criação da conta!
+   - Se perguntar como contratar Starter: Acesse clicando no botão escolher starter, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$320,00 setup) e aguarde até 2 horas para a criação da conta! Depois, será cobrado R$39,99 por mês.
+   - Se perguntar como contratar Professional: Acesse no botão escolher professional, preencha seus dados (nome, data de nascimento, CPF), pague via PIX (R$530,00 setup) e aguarde até 2 horas para a criação da conta! Depois, será cobrado R$79,99 por mês.
    - Se perguntar sobre o formulário: O formulário pede: Nome Completo, Data de Nascimento (mínimo 13 anos) e CPF. Depois você paga via QR Code PIX ou código Copia e Cola!
    - Se perguntar quanto tempo demora: Após pagar e enviar o formulário, aguarde de 10 minutos a 2 horas. O Natan recebe os dados automaticamente e cria sua conta!
 
 🎁 REGRAS ESPECIAIS FREE ACCESS:
-- Se pedir site: Olá {nome_usuario}! A criação de sites não está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI (75 mensagens) e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074
+- Se pedir site: Olá {nome_usuario}! A criação de sites não está incluída no acesso grátis. O Free Access libera apenas Dashboard, NatanAI (100 mensagens/semana) e Suporte para conhecer a plataforma. Para contratar um site personalizado, fale no WhatsApp: (21) 99282-6074
 - Se perguntar sobre o plano starter ou o plano professional: Para contratar um plano, primeiro entre em contato pelo WhatsApp (21) 99282-6074 para escolher o plano ideal. Depois você acessa a página de cadastro correspondente!
 - Contato FREE: Somente WhatsApp (21) 99282-6074
 - Nunca diga abra a página de suporte para FREE
-- Explique que é temporário (7 dias) e expira automaticamente
-- Tem apenas 75 mensagens totais para teste
+- Explique que é temporário (1 ano contrato) e tem 100 mensagens/semana
+- Free tem contrato de 1 ano
 
 💼 REGRAS CLIENTES PAGOS (Starter/Professional):
 - Página Suporte = Chat pessoal com o Natan (pessoa real, não IA)
@@ -896,8 +911,9 @@ Plano Professional (Cadastro Plano Professional - R$530,00)
 - Nunca diga falar comigo - você é a IA, o Natan é uma pessoa real
 - Sempre deixe claro: Suporte = Natan (humano), NatanAI = você (IA)
 - Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
-- STARTER tem 1.000 mensagens/mês
+- STARTER tem 1.250 mensagens/mês
 - PROFESSIONAL tem 5.000 mensagens/mês
+- Ambos têm contrato de 1 ano
 
 🔴 REGRAS ADMIN (Natan):
 - Trate como criador e dono
@@ -967,19 +983,19 @@ ADAPTAÇÃO PARA COMPREENSÃO:
 EXEMPLO DE BOA ADAPTAÇÃO:
 
 Pergunta simples - Quanto custa o plano Starter?
-Resposta: O plano Starter custa R$320 como pagamento único. Esse valor inclui o desenvolvimento completo do seu site profissional e 1.000 mensagens com NatanAI por mês!
+Resposta: O plano Starter custa R$320,00 como pagamento inicial (setup) mais R$39,99 por mês. Esse valor inclui o desenvolvimento completo do seu site profissional e 1.250 mensagens com NatanAI por mês!
 
 Pergunta complexa - Quais são os planos e o que cada um oferece?
 Resposta: A NatanSites oferece três opções de plano:
 
-PLANO STARTER - R$320
-Ideal para quem está começando. Você tem um site profissional com até 5 páginas, design responsivo, hospedagem por 1 ano, suporte técnico e 1.000 mensagens com NatanAI por mês.
+PLANO FREE - Grátis (contrato 1 ano)
+Perfeito para testar a plataforma. Você tem acesso ao dashboard e 100 mensagens/semana com NatanAI, mas não inclui criação de sites comerciais ou hospedagem.
 
-PLANO PROFESSIONAL - R$530
-Perfeito para empresas e projetos maiores. Além de tudo do Starter, você tem páginas ilimitadas, design 100% personalizado, SEO avançado e 5.000 mensagens com NatanAI por mês.
+PLANO STARTER - R$320 (setup) + R$39,99/mês
+Ideal para quem está começando. Você tem um site profissional com até 5 páginas, design responsivo, hospedagem por 1 ano, suporte técnico e 1.250 mensagens com NatanAI por mês.
 
-FREE ACCESS - Grátis por 7 dias
-Você pode testar a plataforma gratuitamente. Tem acesso ao dashboard e 75 mensagens com NatanAI, mas não inclui criação de sites.
+PLANO PROFESSIONAL - R$530 (setup) + R$79,99/mês
+Perfeito para empresas e projetos maiores. Além de tudo do Starter, você tem páginas ilimitadas, design 100% personalizado, SEO avançado, domínio personalizado incluído e 5.000 mensagens com NatanAI por mês.
 
 Qual deles combina mais com o que você precisa?
 
@@ -991,16 +1007,16 @@ Qual deles combina mais com o que você precisa?
 - Emojis simples apenas: nada de emojis complexos
 - Exemplos permitidos: 😊 😅 🚀 ✨ 🌟 💙 ✅ 🎁 💼 👑 🌱 💎
 
-📊 INFORMAÇÕES SOBRE LIMITES DE MENSAGENS (IMPORTANTE!):
-- FREE ACCESS: 75 mensagens totais (durante os 7 dias)
-- STARTER: 1.000 mensagens por mês
+📊 INFORMAÇÕES SOBRE LIMITES DE MENSAGENS (ATUALIZADOS v7.3):
+- FREE ACCESS: 100 mensagens/semana
+- STARTER: 1.250 mensagens por mês
 - PROFESSIONAL: 5.000 mensagens por mês
 - ADMIN: Ilimitado
 
 Se o usuário perguntar sobre limites:
 - Explique de forma clara quantas mensagens ele tem
-- Se for Free: mencione que são 75 mensagens durante os 7 dias de teste
-- Se for Starter: mencione que são 1.000 mensagens que renovam todo mês
+- Se for Free: mencione que são 100 mensagens que renovam toda semana
+- Se for Starter: mencione que são 1.250 mensagens que renovam todo mês
 - Se for Professional: mencione que são 5.000 mensagens que renovam todo mês
 - Sempre seja transparente sobre os limites
 
@@ -1028,7 +1044,7 @@ Responda de forma contextual, pessoal, natural e precisa baseando-se nas informa
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            max_tokens=700,
+            max_tokens=650,  # ✅ REDUZIDO PARA 650 (v7.3)
             temperature=0.75
         )
         
@@ -1108,6 +1124,7 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
         import traceback
         traceback.print_exc()
         return "Ops, erro técnico! Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨", "erro", {}
+
 # =============================================================================
 # 📡 ROTAS
 # =============================================================================
@@ -1127,7 +1144,8 @@ def health():
     
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v7.2 - Sistema de Limites por Plano",
+        "sistema": "NatanAI v7.3 - Planos Atualizados + Max Tokens 650",
+        "versao": "7.3",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
@@ -1136,12 +1154,17 @@ def health():
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
         },
         "limites": {
-            "free": f"{LIMITES_MENSAGENS['free']} mensagens (7 dias)",
+            "free": f"{LIMITES_MENSAGENS['free']} mensagens/semana",
             "starter": f"{LIMITES_MENSAGENS['starter']} mensagens/mês",
             "professional": f"{LIMITES_MENSAGENS['professional']} mensagens/mês",
             "admin": "Ilimitado",
             "total_mensagens_enviadas": total_mensagens_enviadas,
             "total_tokens_usados": total_tokens_usados
+        },
+        "planos_valores": {
+            "free": "R$0,00 (teste 1 ano)",
+            "starter": "R$320,00 (setup) + R$39,99/mês",
+            "professional": "R$530,00 (setup) + R$79,99/mês"
         },
         "features": [
             "memoria_inteligente", 
@@ -1155,9 +1178,10 @@ def health():
             "taf_sem_tabu_projeto",
             "sem_asteriscos_formatacao",
             "adaptacao_formato_inteligente",
-            "max_tokens_700"
+            "max_tokens_650",
+            "valores_atualizados_v73"
         ],
-        "economia": "~11.318 mensagens com $4.98"
+        "economia": "~12.307 mensagens com $5.00 (max_tokens 650)"
     })
 
 @app.route('/chat', methods=['POST'])
@@ -1235,7 +1259,8 @@ def chat():
                 "resposta": mensagem_limite,
                 "metadata": {
                     "fonte": "limite_atingido",
-                    "sistema": "NatanAI v7.2 - Limite de Mensagens",
+                    "sistema": "NatanAI v7.3 - Limite de Mensagens",
+                    "versao": "7.3",
                     "tipo_usuario": tipo_usuario['tipo'],
                     "plano": tipo_usuario['plano'],
                     "nome_usuario": tipo_usuario.get('nome_real', 'Cliente'),
@@ -1292,7 +1317,9 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v7.2 - Sistema de Limites",
+                "sistema": "NatanAI v7.3 - Planos Atualizados",
+                "versao": "7.3",
+                "max_tokens": 650,
                 "tokens": stats_tokens,
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
@@ -1319,7 +1346,7 @@ def chat():
         return jsonify({
             "response": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
             "resposta": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
-            "metadata": {"fonte": "erro", "error": str(e)}
+            "metadata": {"fonte": "erro", "error": str(e), "versao": "7.3"}
         }), 500
 
 @app.route('/estatisticas', methods=['GET'])
@@ -1375,7 +1402,8 @@ def estatisticas():
                 "total_mensagens_enviadas": total_mensagens_enviadas,
                 "usuarios_com_contador": len(CONTADOR_MENSAGENS)
             },
-            "sistema": "NatanAI v7.2 - Sistema de Limites por Plano"
+            "sistema": "NatanAI v7.3 - Planos Atualizados + Max Tokens 650",
+            "versao": "7.3"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1420,7 +1448,8 @@ def verificar_limite_endpoint(user_id):
             "mensagens_usadas": msgs_usadas,
             "limite_total": limite if limite != float('inf') else "Ilimitado",
             "mensagens_restantes": msgs_restantes if msgs_restantes != float('inf') else "Ilimitado",
-            "porcentagem_uso": round((msgs_usadas / limite * 100) if limite != float('inf') else 0, 2)
+            "porcentagem_uso": round((msgs_usadas / limite * 100) if limite != float('inf') else 0, 2),
+            "versao": "7.3"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1430,7 +1459,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v7.2-limites-por-plano"
+        "version": "v7.3-planos-atualizados-max-tokens-650"
     })
 
 @app.route('/', methods=['GET'])
@@ -1439,7 +1468,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v7.2 - Sistema de Limites</title>
+        <title>NatanAI v7.3 - Planos Atualizados</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -1520,6 +1549,30 @@ def home():
             }
             .limit-item .plan-limit {
                 color: #2E7D32;
+                font-weight: bold;
+            }
+            .plan-values {
+                background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 20px 0;
+                border-left: 5px solid #2196F3;
+            }
+            .plan-values h3 { color: #1565C0; margin-bottom: 15px; }
+            .value-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px;
+                margin: 5px 0;
+                background: white;
+                border-radius: 8px;
+                font-weight: 500;
+            }
+            .value-item .plan-name {
+                color: #666;
+            }
+            .value-item .plan-value {
+                color: #1565C0;
                 font-weight: bold;
             }
             .counter-display {
@@ -1634,35 +1687,54 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v7.2 - Sistema de Limites</h1>
-                <p style="color: #666;">Controle de Mensagens por Plano</p>
-                <span class="badge update">✅ v7.2</span>
-                <span class="badge new">📊 Limites Ativos</span>
-                <span class="badge new">🎁 Free: 75 msgs</span>
+                <h1>🧠 NatanAI v7.3 - Planos Atualizados</h1>
+                <p style="color: #666;">Valores e Limites Atualizados</p>
+                <span class="badge update">✅ v7.3</span>
+                <span class="badge new">📊 Limites Atualizados</span>
+                <span class="badge new">💰 Valores Atualizados</span>
                 <span class="badge">650 tokens</span>
             </div>
             
             <div class="update-box">
-                <h3>🆕 NOVO - Sistema de Limites v7.2:</h3>
+                <h3>🆕 NOVO - Sistema Atualizado v7.3:</h3>
                 <p>
-                ✅ <strong>Limites por plano</strong> - Cada plano tem seu limite de mensagens<br>
-                📊 <strong>Contador em tempo real</strong> - Acompanhe quantas mensagens restam<br>
-                🔄 <strong>Renovação mensal</strong> - Limites resetam automaticamente<br>
-                🚫 <strong>Bloqueio ao atingir limite</strong> - Mensagem personalizada por plano<br>
-                💎 <strong>Upgrade incentivado</strong> - Sugestões para planos superiores<br>
-                👑 <strong>Admin ilimitado</strong> - Sem restrições para o criador
+                ✅ <strong>Valores atualizados</strong> - Starter (R$320+R$39,99/mês), Professional (R$530+R$79,99/mês)<br>
+                ✅ <strong>Limites atualizados</strong> - Free (100/semana), Starter (1.250/mês), Pro (5.000/mês)<br>
+                ✅ <strong>Max tokens reduzido</strong> - Agora 650 tokens por resposta (economia)<br>
+                ✅ <strong>Free com contrato 1 ano</strong> - Plano grátis agora tem contrato de 1 ano<br>
+                ✅ <strong>Informações completas</strong> - Todos os detalhes dos planos no sistema
                 </p>
             </div>
 
+            <div class="plan-values">
+                <h3>💰 Valores dos Planos (Atualizados v7.3):</h3>
+                <div class="value-item">
+                    <span class="plan-name">🎁 FREE (contrato 1 ano)</span>
+                    <span class="plan-value">R$ 0,00</span>
+                </div>
+                <div class="value-item">
+                    <span class="plan-name">🌱 STARTER</span>
+                    <span class="plan-value">R$ 320,00 (setup) + R$ 39,99/mês</span>
+                </div>
+                <div class="value-item">
+                    <span class="plan-name">💎 PROFESSIONAL</span>
+                    <span class="plan-value">R$ 530,00 (setup) + R$ 79,99/mês</span>
+                </div>
+                <div class="value-item">
+                    <span class="plan-name">👑 ADMIN</span>
+                    <span class="plan-value">Acesso Total</span>
+                </div>
+            </div>
+
             <div class="limits-info">
-                <h3>📊 Limites de Mensagens por Plano:</h3>
+                <h3>📊 Limites de Mensagens NatanAI (Atualizados v7.3):</h3>
                 <div class="limit-item">
-                    <span class="plan-name">🎁 FREE ACCESS (7 dias)</span>
-                    <span class="plan-limit">75 mensagens totais</span>
+                    <span class="plan-name">🎁 FREE (teste 1 ano)</span>
+                    <span class="plan-limit">100 mensagens/semana</span>
                 </div>
                 <div class="limit-item">
                     <span class="plan-name">🌱 STARTER</span>
-                    <span class="plan-limit">1.000 mensagens/mês</span>
+                    <span class="plan-limit">1.250 mensagens/mês</span>
                 </div>
                 <div class="limit-item">
                     <span class="plan-name">💎 PROFESSIONAL</span>
@@ -1677,8 +1749,8 @@ def home():
             <div class="select-plan">
                 <strong>🎭 Testar como:</strong>
                 <select id="planType" onchange="atualizarPlano()">
-                    <option value="free">🎁 Free Access (75 mensagens totais)</option>
-                    <option value="starter">🌱 Starter (1.000 mensagens/mês)</option>
+                    <option value="free">🎁 Free (100 mensagens/semana)</option>
+                    <option value="starter">🌱 Starter (1.250 mensagens/mês)</option>
                     <option value="professional">💎 Professional (5.000 mensagens/mês)</option>
                     <option value="admin">👑 Admin (Ilimitado)</option>
                 </select>
@@ -1696,13 +1768,13 @@ def home():
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v7.2:</strong><br><br>
-                    Sistema de Limites de Mensagens ativado! 📊<br><br>
-                    <strong>Como funciona:</strong><br>
-                    • Cada plano tem um limite de mensagens<br>
-                    • O contador é atualizado em tempo real<br>
-                    • Ao atingir o limite, você recebe orientações<br>
-                    • Planos pagos renovam mensalmente<br><br>
+                    <strong>🤖 NatanAI v7.3:</strong><br><br>
+                    Sistema Atualizado com novos valores e limites! 📊<br><br>
+                    <strong>Novidades v7.3:</strong><br>
+                    • Valores atualizados: Starter (R$320+R$39,99/mês), Professional (R$530+R$79,99/mês)<br>
+                    • Limites atualizados: Free (100/semana), Starter (1.250/mês), Pro (5.000/mês)<br>
+                    • Max tokens reduzido para 650 (economia)<br>
+                    • Free com contrato de 1 ano<br><br>
                     <strong>Teste o sistema!</strong>
                 </div>
             </div>
@@ -1716,7 +1788,7 @@ def home():
         <script>
         let planAtual = 'free';
         let mensagensEnviadas = 0;
-        let limiteAtual = 75;
+        let limiteAtual = 100;
 
         const planConfigs = {
             free: {
@@ -1725,8 +1797,8 @@ def home():
                 user_name: 'Visitante Free',
                 name: 'Visitante Free',
                 email: 'free@teste.com',
-                limite: 75,
-                info: '🎁 FREE ACCESS - 75 mensagens totais (7 dias)'
+                limite: 100,
+                info: '🎁 FREE - 100 mensagens/semana (contrato 1 ano) - R$ 0,00'
             },
             admin: {
                 plan: 'admin',
@@ -1743,8 +1815,8 @@ def home():
                 user_name: 'Cliente Starter',
                 name: 'Cliente Starter',
                 email: 'starter@teste.com',
-                limite: 1000,
-                info: '🌱 STARTER - 1.000 mensagens/mês'
+                limite: 1250,
+                info: '🌱 STARTER - 1.250 mensagens/mês - R$320 (setup) + R$39,99/mês'
             },
             professional: {
                 plan: 'professional',
@@ -1753,7 +1825,7 @@ def home():
                 name: 'Cliente Pro',
                 email: 'pro@teste.com',
                 limite: 5000,
-                info: '💎 PROFESSIONAL - 5.000 mensagens/mês'
+                info: '💎 PROFESSIONAL - 5.000 mensagens/mês - R$530 (setup) + R$79,99/mês'
             }
         };
 
@@ -1766,11 +1838,11 @@ def home():
             atualizarContador();
             
             const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.2:</strong><br><br>' + 
+            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.3:</strong><br><br>' + 
                 planConfigs[planAtual].info + '<br><br>' +
                 '<strong>Limite deste plano:</strong> ' + (limiteAtual === Infinity ? 'Ilimitado' : limiteAtual + ' mensagens') + '<br><br>' +
-                '<strong>Teste o sistema de limites!</strong><br>' +
-                'Envie mensagens e veja o contador atualizar em tempo real.' +
+                '<strong>Teste o sistema atualizado v7.3!</strong><br>' +
+                'Envie mensagens e veja o contador em tempo real.' +
                 '</div>';
         }
 
@@ -1858,7 +1930,7 @@ def home():
                 const limiteAtingido = data.metadata && data.metadata.limite_atingido;
                 const messageClass = limiteAtingido ? 'warning-message' : 'bot';
                 
-                chatBox.innerHTML += '<div class="message ' + messageClass + '"><strong>🤖 NatanAI v7.2:</strong><br><br>' + resp + '</div>';
+                chatBox.innerHTML += '<div class="message ' + messageClass + '"><strong>🤖 NatanAI v7.3:</strong><br><br>' + resp + '</div>';
                 
                 // Atualiza contador
                 if (data.metadata && data.metadata.limite_mensagens) {
@@ -1867,12 +1939,13 @@ def home():
                     atualizarContador();
                     
                     console.log('📊 Limite Info:', limiteInfo);
+                    console.log('📊 Tokens:', data.metadata.tokens);
                 } else if (!limiteAtingido) {
                     mensagensEnviadas++;
                     atualizarContador();
                 }
                 
-                console.log('✅ Metadata:', data.metadata);
+                console.log('✅ Metadata v7.3:', data.metadata);
                 
             } catch (error) {
                 chatBox.innerHTML += '<div class="message error-message"><strong>🤖 NatanAI:</strong><br>Erro: ' + error.message + '</div>';
@@ -1888,34 +1961,43 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🧠 NATANAI v7.2 - SISTEMA DE LIMITES DE MENSAGENS POR PLANO")
+    print("🧠 NATANAI v7.3 - PLANOS E LIMITES ATUALIZADOS")
     print("="*80)
-    print("📊 LIMITES CONFIGURADOS:")
-    print("   🎁 FREE ACCESS: 75 mensagens totais (7 dias)")
-    print("   🌱 STARTER: 1.000 mensagens/mês")
+    print("💰 VALORES ATUALIZADOS:")
+    print("   🎁 FREE: R$ 0,00 (contrato 1 ano)")
+    print("   🌱 STARTER: R$ 320,00 (setup) + R$ 39,99/mês")
+    print("   💎 PROFESSIONAL: R$ 530,00 (setup) + R$ 79,99/mês")
+    print("")
+    print("📊 LIMITES ATUALIZADOS:")
+    print("   🎁 FREE: 100 mensagens/semana")
+    print("   🌱 STARTER: 1.250 mensagens/mês")
     print("   💎 PROFESSIONAL: 5.000 mensagens/mês")
     print("   👑 ADMIN: ∞ Ilimitado")
     print("")
-    print("✨ FEATURES v7.2:")
+    print("✨ FEATURES v7.3:")
+    print("   ✅ Valores dos planos atualizados")
+    print("   ✅ Limites de mensagens atualizados")
+    print("   ✅ Max tokens reduzido para 650 (economia)")
+    print("   ✅ Free com contrato de 1 ano")
+    print("   ✅ Sistema de mensalidade (setup + mensal)")
+    print("   ✅ Informações completas dos planos")
     print("   ✅ Contador de mensagens por usuário")
     print("   ✅ Verificação de limite antes de responder")
     print("   ✅ Mensagem personalizada ao atingir limite")
     print("   ✅ Bloqueio automático após limite")
-    print("   ✅ Sugestões de upgrade por plano")
-    print("   ✅ Endpoint para resetar contador")
-    print("   ✅ Endpoint para verificar limites")
     print("")
     print("🔧 AJUSTES TÉCNICOS:")
-    print("   • max_tokens reduzido para 650 (economia)")
+    print("   • max_tokens: 650 (otimizado)")
     print("   • Sistema de contador thread-safe")
     print("   • Validação relaxada para Free Access")
     print("   • Mensagens personalizadas por tipo de plano")
+    print("   • Informações completas sobre cadastro")
     print("")
-    print("💰 CUSTO ESTIMADO:")
-    print("   • FREE (75 msgs): ~$0,033 (R$ 0,17)")
-    print("   • STARTER (1k msgs): ~$0,44 (R$ 2,20)")
-    print("   • PROFESSIONAL (5k msgs): ~$2,20 (R$ 11,00)")
-    print("   • Total com $5: ~11.318 mensagens")
+    print("💰 CUSTO ESTIMADO (max_tokens 650):")
+    print("   • FREE (100 msgs/sem): ~$0,044/semana ($0,18/mês)")
+    print("   • STARTER (1.250 msgs/mês): ~$0,55/mês")
+    print("   • PROFESSIONAL (5k msgs/mês): ~$2,20/mês")
+    print("   • Total com $5: ~12.307 mensagens")
     print("="*80 + "\n")
     
     print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
@@ -1923,6 +2005,6 @@ if __name__ == '__main__':
     print(f"Sistema de Memória: ✅ Ativo")
     print(f"Sistema de Limites: ✅ Ativo")
     print(f"Limpeza de Formatação: ✅ Ativa")
-    print(f"Max Tokens: ✅ 650 (otimizado)\n")
+    print(f"Max Tokens: ✅ 650 (v7.3 otimizado)\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
