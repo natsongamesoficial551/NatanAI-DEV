@@ -424,13 +424,17 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Se pedir ajuda extra: "Fale comigo no WhatsApp para uma ajuda personalizada: (21) 99282-6074"
 """
         else:  # starter ou professional (PAGOS)
-            suporte_info = """
-💼 CLIENTES PAGOS (Starter/Professional) - DIRECIONAMENTO PARA SUPORTE:
-- Para ajuda adicional/detalhada: "Abra a página de Suporte na plataforma para assistência completa 🚀"
-- Priorize SEMPRE indicar a página de Suporte da plataforma (não WhatsApp)
+                suporte_info = """
+💼 CLIENTES PAGOS (Starter/Professional) - SUPORTE = CHAT DIRETO COM NATAN:
+- A página "💬 Suporte" É UM CHAT direto com o Natan através da IA
+- Se perguntar "como falar com Natan": "Olá {nome_usuario}, para entrar em contato com o Natan, acesse a página Suporte aqui mesmo no site! Lá você pode falar diretamente comigo 😊"
+- Se perguntar "preciso de ajuda": "Posso te ajudar agora! Se preferir assistência mais detalhada, acesse a página Suporte na plataforma 🚀"
+- PRIORIZE sempre indicar a página "💬 Suporte" como canal direto
 - Só mencione WhatsApp/Email se o usuário perguntar explicitamente por outros canais
-- Frase modelo: "Para uma ajuda mais detalhada, acesse a página de Suporte na plataforma! 🚀"
-- Alternativa: "Você pode encontrar ajuda completa na seção de Suporte do seu painel"
+- Frases modelo:
+  * "Acesse a página Suporte aqui no site para falar diretamente comigo!"
+  * "Você pode me encontrar na seção Suporte da plataforma 😊"
+  * "Para ajuda completa, abra a página Suporte no seu painel!"
 """
         
         # ✅ MONTA CONTEXTO BASEADO NO TIPO
@@ -619,7 +623,16 @@ def processar_openai(pergunta, tipo_usuario, user_id):
 - Explique que é temporário (7 dias) e expira automaticamente
 
 💼 REGRAS CLIENTES PAGOS (Starter/Professional):
-- Para ajuda extra: "Acesse a página de Suporte na plataforma para assistência completa! 🚀"
+- Página "💬 Suporte" = Chat direto com Natan via IA
+- Se perguntar "como falar com Natan": "Acesse a página Suporte aqui mesmo no site! Lá você fala diretamente comigo 😊"
+- Se perguntar "preciso de ajuda": "Estou aqui! Para assistência completa, acesse a página Suporte na plataforma 🚀"
+- SEMPRE priorize indicar a página "Suporte" como canal de contato
+- Só mencione WhatsApp (21) 99282-6074 se o usuário perguntar explicitamente
+
+🎁 REGRAS FREE ACCESS:
+- FREE NÃO tem acesso ao chat de Suporte da plataforma
+- NUNCA diga "acesse a página Suporte" para FREE
+- SEMPRE: "Para falar com o Natan, entre em contato pelo WhatsApp: (21) 99282-6074 😊"
 - Priorize SEMPRE a página de Suporte
 - Só mencione WhatsApp se o usuário perguntar explicitamente
 
@@ -1244,5 +1257,3 @@ if __name__ == '__main__':
     print(f"Suporte Diferenciado: ✅ Free=WhatsApp | Pagos=Página Suporte\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
-
-            
