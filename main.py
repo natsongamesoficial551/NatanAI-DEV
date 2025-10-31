@@ -71,6 +71,8 @@ contador_lock = threading.Lock()
 
 # 📊 CONTADOR DE TOKENS POR USUÁRIO
 CONTADOR_TOKENS = {}
+TREINOS_IA = []
+treinos_lock = threading.Lock()
 tokens_lock = threading.Lock()
 
 # Auto-ping
@@ -236,6 +238,175 @@ def obter_estatisticas_tokens(user_id):
             stats['media_por_mensagem'] = 0
         
         return stats
+    
+    # =============================================================================
+# 🎓 SISTEMA DE TREINAMENTO ADMIN
+# =============================================================================
+
+def carregar_treinos_supabase():
+    """Carrega treinos ativos do Supabase"""
+    try:
+        if not supabase:
+            return []
+        
+        response = supabase.table('ai_training').select('*').eq('ativo', True).execute()
+        
+        if response.data:
+            print(f"📚 {len(response.data)} treinos carregados do Supabase")
+            return response.data
+        return []
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar treinos: {e}")
+        return []
+
+def adicionar_treino(titulo, conteudo, categoria='geral'):
+    """Adiciona novo treino no Supabase"""
+    try:
+        if not supabase:
+            return False, "Supabase não disponível"
+        
+        data = {
+            'titulo': titulo,
+            'conteudo': conteudo,
+            'categoria': categoria,
+            'ativo': True
+        }
+        
+        response = supabase.table('ai_training').insert(data).execute()
+        
+        if response.data:
+            # Atualiza cache local
+            with treinos_lock:
+                global TREINOS_IA
+                TREINOS_IA = carregar_treinos_supabase()
+            
+            print(f"✅ Treino adicionado: {titulo}")
+            return True, f"Treino '{titulo}' adicionado com sucesso!"
+        
+        return False, "Erro ao salvar treino"
+        
+    except Exception as e:
+        print(f"❌ Erro ao adicionar treino: {e}")
+        return False, str(e)
+
+def listar_treinos():
+    """Lista todos os treinos (ativos e inativos)"""
+    try:
+        if not supabase:
+            return []
+        
+        response = supabase.table('ai_training').select('*').order('id').execute()
+        return response.data if response.data else []
+        
+    except Exception as e:
+        print(f"⚠️ Erro ao listar treinos: {e}")
+        return []
+
+def remover_treino(treino_id):
+    """Desativa um treino (soft delete)"""
+    try:
+        if not supabase:
+            return False, "Supabase não disponível"
+        
+        response = supabase.table('ai_training').update({'ativo': False}).eq('id', treino_id).execute()
+        
+        if response.data:
+            # Atualiza cache local
+            with treinos_lock:
+                global TREINOS_IA
+                TREINOS_IA = carregar_treinos_supabase()
+            
+            print(f"🗑️ Treino {treino_id} desativado")
+            return True, f"Treino #{treino_id} removido!"
+        
+        return False, "Treino não encontrado"
+        
+    except Exception as e:
+        print(f"❌ Erro ao remover treino: {e}")
+        return False, str(e)
+
+def editar_treino(treino_id, novo_conteudo=None, novo_titulo=None, nova_categoria=None):
+    """Edita um treino existente"""
+    try:
+        if not supabase:
+            return False, "Supabase não disponível"
+        
+        updates = {'atualizado_em': 'NOW()'}
+        if novo_conteudo:
+            updates['conteudo'] = novo_conteudo
+        if novo_titulo:
+            updates['titulo'] = novo_titulo
+        if nova_categoria:
+            updates['categoria'] = nova_categoria
+        
+        response = supabase.table('ai_training').update(updates).eq('id', treino_id).execute()
+        
+        if response.data:
+            # Atualiza cache local
+            with treinos_lock:
+                global TREINOS_IA
+                TREINOS_IA = carregar_treinos_supabase()
+            
+            print(f"✏️ Treino {treino_id} editado")
+            return True, f"Treino #{treino_id} atualizado!"
+        
+        return False, "Treino não encontrado"
+        
+    except Exception as e:
+        print(f"❌ Erro ao editar treino: {e}")
+        return False, str(e)
+
+def ativar_treino(treino_id):
+    """Reativa um treino desativado"""
+    try:
+        if not supabase:
+            return False, "Supabase não disponível"
+        
+        response = supabase.table('ai_training').update({'ativo': True}).eq('id', treino_id).execute()
+        
+        if response.data:
+            # Atualiza cache local
+            with treinos_lock:
+                global TREINOS_IA
+                TREINOS_IA = carregar_treinos_supabase()
+            
+            print(f"✅ Treino {treino_id} reativado")
+            return True, f"Treino #{treino_id} reativado!"
+        
+        return False, "Treino não encontrado"
+        
+    except Exception as e:
+        print(f"❌ Erro ao ativar treino: {e}")
+        return False, str(e)
+
+def gerar_contexto_treinos():
+    """Gera contexto de treinos para adicionar ao prompt"""
+    with treinos_lock:
+        if not TREINOS_IA:
+            return ""
+        
+        contexto = "\n\n📚 CONHECIMENTO ADICIONAL TREINADO (Admin):\n\n"
+        
+        # Agrupa por categoria
+        por_categoria = {}
+        for treino in TREINOS_IA:
+            cat = treino.get('categoria', 'geral')
+            if cat not in por_categoria:
+                por_categoria[cat] = []
+            por_categoria[cat].append(treino)
+        
+        # Monta contexto organizado
+        for categoria, treinos in por_categoria.items():
+            contexto += f"📌 {categoria.upper()}:\n"
+            for treino in treinos:
+                contexto += f"   • {treino['titulo']}: {treino['conteudo']}\n"
+            contexto += "\n"
+        
+        return contexto
+
+# Carrega treinos ao iniciar
+TREINOS_IA = carregar_treinos_supabase()
+print(f"📚 Sistema de Treinamento: {len(TREINOS_IA)} treinos ativos")
 
 # =============================================================================
 # 🔐 AUTENTICAÇÃO E DADOS DO USUÁRIO
@@ -1030,6 +1201,12 @@ REGRAS DE IDIOMA:
 
 Responda de forma contextual, pessoal, natural e precisa baseando-se nas informações reais do portfólio:"""
 
+        # ✅ ADICIONA TREINOS ADMIN AO PROMPT
+        contexto_treinos = gerar_contexto_treinos()
+        if contexto_treinos:
+            prompt_sistema += contexto_treinos
+            print(f"📚 {len(TREINOS_IA)} treinos adicionados ao contexto")
+        
         contexto_memoria = obter_contexto_memoria(user_id)
         
         messages = [
@@ -1244,6 +1421,137 @@ def chat():
                 }
                 print(f"⚠️ Usando fallback padrão")
         
+        # ✅ COMANDOS ADMIN (AGORA NO LUGAR CERTO!)
+        if mensagem.startswith('/') and tipo_usuario and tipo_usuario.get('tipo') == 'admin':
+            
+            # /treinar [categoria] | [titulo] | [conteudo]
+            if mensagem.startswith('/treinar '):
+                partes = mensagem[9:].split('|')
+                if len(partes) >= 3:
+                    categoria = partes[0].strip()
+                    titulo = partes[1].strip()
+                    conteudo = partes[2].strip()
+                    sucesso, msg = adicionar_treino(titulo, conteudo, categoria)
+                    return jsonify({
+                        "response": f"{'✅' if sucesso else '❌'} {msg}\n\nTotal de treinos ativos: {len(TREINOS_IA)}",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+                else:
+                    return jsonify({
+                        "response": "❌ Formato incorreto!\n\nUso: /treinar categoria | titulo | conteudo\n\nExemplo:\n/treinar processos | Prazo de Entrega | O prazo padrão de entrega de sites é 15 dias úteis",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+            
+            # /listar_treinos
+            elif mensagem == '/listar_treinos':
+                treinos = listar_treinos()
+                if not treinos:
+                    return jsonify({
+                        "response": "📚 Nenhum treino cadastrado ainda.\n\nUse /treinar para adicionar conhecimento!",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+                
+                resposta = "📚 TREINOS CADASTRADOS:\n\n"
+                for t in treinos:
+                    status = "✅" if t['ativo'] else "❌"
+                    resposta += f"{status} #{t['id']} - [{t['categoria']}] {t['titulo']}\n   {t['conteudo'][:80]}...\n\n"
+                
+                resposta += f"\nTotal: {len(treinos)} treinos ({len([t for t in treinos if t['ativo']])} ativos)"
+                
+                return jsonify({
+                    "response": resposta,
+                    "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                })
+            
+            # /remover_treino [id]
+            elif mensagem.startswith('/remover_treino '):
+                try:
+                    treino_id = int(mensagem.split()[1])
+                    sucesso, msg = remover_treino(treino_id)
+                    return jsonify({
+                        "response": f"{'✅' if sucesso else '❌'} {msg}",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+                except:
+                    return jsonify({
+                        "response": "❌ Formato incorreto!\n\nUso: /remover_treino [id]\n\nExemplo: /remover_treino 5",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+            
+            # /ativar_treino [id]
+            elif mensagem.startswith('/ativar_treino '):
+                try:
+                    treino_id = int(mensagem.split()[1])
+                    sucesso, msg = ativar_treino(treino_id)
+                    return jsonify({
+                        "response": f"{'✅' if sucesso else '❌'} {msg}",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+                except:
+                    return jsonify({
+                        "response": "❌ Formato incorreto!\n\nUso: /ativar_treino [id]\n\nExemplo: /ativar_treino 5",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+            
+            # /editar_treino [id] | [novo_conteudo]
+            elif mensagem.startswith('/editar_treino '):
+                partes = mensagem[15:].split('|', 1)
+                if len(partes) == 2:
+                    try:
+                        treino_id = int(partes[0].strip())
+                        novo_conteudo = partes[1].strip()
+                        sucesso, msg = editar_treino(treino_id, novo_conteudo=novo_conteudo)
+                        return jsonify({
+                            "response": f"{'✅' if sucesso else '❌'} {msg}",
+                            "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                        })
+                    except:
+                        return jsonify({
+                            "response": "❌ ID inválido!",
+                            "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                        })
+                else:
+                    return jsonify({
+                        "response": "❌ Formato incorreto!\n\nUso: /editar_treino [id] | [novo_conteudo]\n\nExemplo:\n/editar_treino 5 | Prazo atualizado: 20 dias úteis",
+                        "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                    })
+            
+            # /ajuda_treinos
+            elif mensagem == '/ajuda_treinos' or mensagem == '/help':
+                return jsonify({
+                    "response": """📚 COMANDOS DE TREINAMENTO ADMIN:
+
+/treinar [categoria] | [titulo] | [conteudo]
+   Adiciona novo conhecimento à IA
+   Exemplo: /treinar processos | Prazo | Sites ficam prontos em 15 dias
+
+/listar_treinos
+   Lista todos os treinos cadastrados
+
+/remover_treino [id]
+   Desativa um treino
+   Exemplo: /remover_treino 5
+
+/ativar_treino [id]
+   Reativa um treino desativado
+   Exemplo: /ativar_treino 5
+
+/editar_treino [id] | [novo_conteudo]
+   Edita o conteúdo de um treino
+   Exemplo: /editar_treino 5 | Novo prazo: 20 dias
+
+📌 CATEGORIAS SUGERIDAS:
+- processos
+- precos
+- contatos
+- informacoes
+- respostas
+
+💡 DICA: Use títulos curtos e conteúdo objetivo!""",
+                    "metadata": {"fonte": "comando_admin", "versao": "7.3"}
+                })
+        
+        # ✅ CONTINUA COM O RESTO DA FUNÇÃO (ISSO ESTAVA FALTANDO!)
         user_id = obter_user_id(user_info, user_data_req if user_data_req else {'email': tipo_usuario.get('nome_real', 'anonimo')})
         
         # ✅ VERIFICA LIMITE DE MENSAGENS
