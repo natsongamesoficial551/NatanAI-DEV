@@ -69,6 +69,10 @@ INTERVALO_RESUMO = 5
 CONTADOR_MENSAGENS = {}
 contador_lock = threading.Lock()
 
+# 📊 CONTADOR DE TOKENS POR USUÁRIO
+CONTADOR_TOKENS = {}
+tokens_lock = threading.Lock()
+
 # Auto-ping
 def auto_ping():
     while True:
@@ -188,6 +192,48 @@ Isso é bastante uso! Se precisar de mais mensagens, entre em contato com o Nata
 Obrigado pela confiança! 💎"""
     
     return "Limite de mensagens atingido. Entre em contato com o suporte."
+
+# =============================================================================
+# 📊 SISTEMA DE CONTAGEM DE TOKENS
+# =============================================================================
+
+def registrar_tokens_usados(user_id, tokens_entrada, tokens_saida, tokens_total):
+    """Registra tokens usados por um usuário"""
+    with tokens_lock:
+        if user_id not in CONTADOR_TOKENS:
+            CONTADOR_TOKENS[user_id] = {
+                'total_entrada': 0,
+                'total_saida': 0,
+                'total_geral': 0,
+                'mensagens_processadas': 0
+            }
+        
+        CONTADOR_TOKENS[user_id]['total_entrada'] += tokens_entrada
+        CONTADOR_TOKENS[user_id]['total_saida'] += tokens_saida
+        CONTADOR_TOKENS[user_id]['total_geral'] += tokens_total
+        CONTADOR_TOKENS[user_id]['mensagens_processadas'] += 1
+        
+        print(f"📊 Tokens registrados: entrada={tokens_entrada}, saída={tokens_saida}, total={tokens_total}")
+
+def obter_estatisticas_tokens(user_id):
+    """Retorna estatísticas de tokens de um usuário"""
+    with tokens_lock:
+        if user_id not in CONTADOR_TOKENS:
+            return {
+                'total_entrada': 0,
+                'total_saida': 0,
+                'total_geral': 0,
+                'mensagens_processadas': 0,
+                'media_por_mensagem': 0
+            }
+        
+        stats = CONTADOR_TOKENS[user_id].copy()
+        if stats['mensagens_processadas'] > 0:
+            stats['media_por_mensagem'] = round(stats['total_geral'] / stats['mensagens_processadas'], 2)
+        else:
+            stats['media_por_mensagem'] = 0
+        
+        return stats
 
 # =============================================================================
 # 🔐 AUTENTICAÇÃO E DADOS DO USUÁRIO
@@ -988,11 +1034,19 @@ Responda de forma contextual, pessoal, natural e precisa baseando-se nas informa
         
         resposta = response.choices[0].message.content.strip()
         
+        # ✅ CAPTURA TOKENS USADOS (GRÁTIS - já vem na resposta)
+        tokens_entrada = response.usage.prompt_tokens
+        tokens_saida = response.usage.completion_tokens
+        tokens_total = response.usage.total_tokens
+        
+        # Registra tokens do usuário
+        registrar_tokens_usados(user_id, tokens_entrada, tokens_saida, tokens_total)
+        
+        print(f"📊 Tokens desta resposta: {tokens_entrada} (entrada) + {tokens_saida} (saída) = {tokens_total} (total)")
+        
         # ✅ LIMPA FORMATAÇÃO MARKDOWN (REMOVE ASTERISCOS)
         resposta = limpar_formatacao_markdown(resposta)
-        
-        print(f"✅ Resposta OpenAI recebida: {resposta[:80]}...")
-        
+
         adicionar_mensagem_memoria(user_id, 'user', pergunta)
         adicionar_mensagem_memoria(user_id, 'assistant', resposta)
         
@@ -1040,18 +1094,20 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
             if usar_cache:
                 CACHE_RESPOSTAS[cache_key] = resposta
                 print(f"💾 Resposta salva no cache")
-            return resposta, f"openai_memoria_{tipo}"
+            
+            # Pega estatísticas de tokens do usuário
+            stats_tokens = obter_estatisticas_tokens(user_id)
+            return resposta, f"openai_memoria_{tipo}", stats_tokens
         
         print(f"⚠️ OpenAI retornou None, usando fallback")
         nome = tipo_usuario.get('nome_real', 'Cliente')
-        return f"Desculpa {nome}, estou com dificuldades técnicas no momento.\n\nPor favor, fale diretamente com o Natan no WhatsApp: (21) 99282-6074", "fallback"
+        return f"Desculpa {nome}, estou com dificuldades técnicas no momento.\n\nPor favor, fale diretamente com o Natan no WhatsApp: (21) 99282-6074", "fallback", {}
         
     except Exception as e:
         print(f"❌ Erro gerar_resposta: {e}")
         import traceback
         traceback.print_exc()
-        return "Ops, erro técnico! Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨", "erro"
-
+        return "Ops, erro técnico! Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨", "erro", {}
 # =============================================================================
 # 📡 ROTAS
 # =============================================================================
@@ -1063,6 +1119,9 @@ def health():
         usuarios_ativos = len(MEMORIA_USUARIOS)
         total_mensagens = sum(len(m['mensagens']) for m in MEMORIA_USUARIOS.values())
     
+    with tokens_lock:
+        total_tokens_usados = sum(c['total_geral'] for c in CONTADOR_TOKENS.values())
+
     with contador_lock:
         total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
     
@@ -1081,7 +1140,8 @@ def health():
             "starter": f"{LIMITES_MENSAGENS['starter']} mensagens/mês",
             "professional": f"{LIMITES_MENSAGENS['professional']} mensagens/mês",
             "admin": "Ilimitado",
-            "total_mensagens_enviadas": total_mensagens_enviadas
+            "total_mensagens_enviadas": total_mensagens_enviadas,
+            "total_tokens_usados": total_tokens_usados
         },
         "features": [
             "memoria_inteligente", 
@@ -1181,7 +1241,7 @@ def chat():
                     "nome_usuario": tipo_usuario.get('nome_real', 'Cliente'),
                     "limite_atingido": True,
                     "mensagens_usadas": msgs_usadas,
-                    "limite_total": limite,
+                    "limite_total": "ilimitado" if limite == float('inf') else limite,
                     "mensagens_restantes": 0
                 }
             })
@@ -1193,18 +1253,18 @@ def chat():
         
         print(f"\n{'='*80}")
         print(f"💬 [{datetime.now().strftime('%H:%M:%S')}] {nome_usuario} ({tipo_usuario['nome_display']}) - TIPO: '{tipo_str}'")
-        print(f"📊 Mensagens: {msgs_usadas + 1}/{limite} (restantes: {msgs_restantes - 1})")
+        print(f"📊 Mensagens: {msgs_usadas + 1}/{limite if limite != float('inf') else 'ilimitado'} (restantes: {msgs_restantes if msgs_restantes != float('inf') else 'ilimitado'})")
         print(f"📝 Mensagem: {mensagem[:100]}...")
         print(f"{'='*80}\n")
         
-        resposta, fonte = gerar_resposta(mensagem, tipo_usuario, user_id)
+        resposta, fonte, stats_tokens = gerar_resposta(mensagem, tipo_usuario, user_id)
         valida, _ = validar_resposta(resposta, tipo_str)
         
         # ✅ INCREMENTA CONTADOR APENAS SE A RESPOSTA FOI GERADA COM SUCESSO
         if fonte != "erro" and fonte != "fallback":
             nova_contagem = incrementar_contador(user_id, tipo_plano)
-            msgs_restantes = limite - nova_contagem
-            print(f"📊 Contador atualizado: {nova_contagem}/{limite}")
+            msgs_restantes = limite - nova_contagem if limite != float('inf') else float('inf')
+            print(f"📊 Contador atualizado: {nova_contagem}/{limite if limite != float('inf') else 'ilimitado'}")
         
         with historico_lock:
             HISTORICO_CONVERSAS.append({
@@ -1226,12 +1286,14 @@ def chat():
         
         print(f"✅ Resposta enviada - Fonte: {fonte} | Validação: {valida}")
         
+        # ✅ CONVERTE INFINITY PARA STRING NO JSON
         return jsonify({
             "response": resposta,
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
                 "sistema": "NatanAI v7.2 - Sistema de Limites",
+                "tokens": stats_tokens,
                 "tipo_usuario": tipo_usuario['tipo'],
                 "plano": tipo_usuario['plano'],
                 "nome_usuario": nome_usuario,
@@ -1243,9 +1305,9 @@ def chat():
                 "formatacao_limpa": True,
                 "limite_mensagens": {
                     "mensagens_usadas": nova_contagem if fonte not in ["erro", "fallback"] else msgs_usadas,
-                    "limite_total": limite,
-                    "mensagens_restantes": max(0, msgs_restantes),
-                    "porcentagem_uso": round((nova_contagem / limite * 100) if limite != float('inf') else 0, 2)
+                    "limite_total": "ilimitado" if limite == float('inf') else limite,
+                    "mensagens_restantes": "ilimitado" if msgs_restantes == float('inf') else max(0, msgs_restantes),
+                    "porcentagem_uso": 0 if limite == float('inf') else round((nova_contagem / limite * 100) if fonte not in ["erro", "fallback"] else (msgs_usadas / limite * 100), 2)
                 }
             }
         })
