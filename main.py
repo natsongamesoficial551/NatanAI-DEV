@@ -106,11 +106,218 @@ def detectar_categoria_mensagem(mensagem):
     # Padrão: explicação simples
     return 'explicacao_simples', CATEGORIAS_MENSAGEM['explicacao_simples']
 
+# ============================================
+# 🆕 SISTEMA DE LEITURA DO SUPABASE v7.5
+# ============================================
+CACHE_SUPABASE = {
+    'site_content': {'data': None, 'ultima_atualizacao': None},
+    'plataforma_info': {'data': None, 'ultima_atualizacao': None},
+    'repo_content': {'data': None, 'ultima_atualizacao': None},
+    'ia_memoria': {'data': None, 'ultima_atualizacao': None}
+}
+INTERVALO_ATUALIZACAO_CACHE = 300  # 5 minutos
+cache_lock = threading.Lock()
+
+def carregar_dados_supabase(tabela):
+    """Carrega dados de uma tabela do Supabase com cache"""
+    try:
+        if not supabase:
+            print(f"⚠️ Supabase não conectado para tabela: {tabela}")
+            return None
+        
+        with cache_lock:
+            cache_entry = CACHE_SUPABASE.get(tabela)
+            agora = datetime.now()
+            
+            # Verifica se cache é válido
+            if cache_entry['data'] and cache_entry['ultima_atualizacao']:
+                diferenca = (agora - cache_entry['ultima_atualizacao']).total_seconds()
+                if diferenca < INTERVALO_ATUALIZACAO_CACHE:
+                    print(f"📦 Cache válido para {tabela} ({int(diferenca)}s)")
+                    return cache_entry['data']
+        
+        # Busca dados do Supabase
+        print(f"🔄 Carregando dados da tabela: {tabela}")
+        response = supabase.table(tabela).select('*').execute()
+        
+        if response.data:
+            with cache_lock:
+                CACHE_SUPABASE[tabela]['data'] = response.data
+                CACHE_SUPABASE[tabela]['ultima_atualizacao'] = agora
+            
+            print(f"✅ {len(response.data)} registros carregados de {tabela}")
+            return response.data
+        else:
+            print(f"⚠️ Nenhum dado encontrado em {tabela}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Erro ao carregar {tabela}: {e}")
+        return None
+
+def formatar_site_content(dados):
+    """Formata dados da tabela site_content para o prompt"""
+    if not dados:
+        return ""
+    
+    texto = "\n📄 CONTEÚDO DO SITE (natansites.com.br):\n\n"
+    
+    for item in dados[:20]:  # Limita a 20 páginas para não sobrecarregar
+        page = item.get('page_name', 'Desconhecida')
+        content = item.get('content', '')
+        
+        if content:
+            # Limita conteúdo por página
+            content_resumido = content[:500] + "..." if len(content) > 500 else content
+            texto += f"Página: {page}\n{content_resumido}\n\n"
+    
+    return texto
+
+def formatar_plataforma_info(dados):
+    """Formata dados da tabela plataforma_info para o prompt"""
+    if not dados:
+        return ""
+    
+    texto = "\n💼 INFORMAÇÕES DA PLATAFORMA:\n\n"
+    
+    for item in dados:
+        secao = item.get('secao', 'Desconhecida')
+        dados_secao = item.get('dados', {})
+        
+        if secao == 'planos' and isinstance(dados_secao, dict):
+            planos = dados_secao.get('planos', [])
+            if planos:
+                texto += "PLANOS DISPONÍVEIS:\n"
+                for plano in planos:
+                    nome = plano.get('nome', '')
+                    preco = plano.get('preco', '')
+                    if nome and preco:
+                        texto += f"- {nome}: {preco}\n"
+                texto += "\n"
+        
+        elif secao == 'promocoes' and isinstance(dados_secao, dict):
+            promo_texto = dados_secao.get('texto', '')
+            if promo_texto:
+                texto += f"PROMOÇÃO ATIVA:\n{promo_texto[:300]}\n\n"
+        
+        elif secao == 'contato' and isinstance(dados_secao, dict):
+            whatsapp = dados_secao.get('whatsapp', '')
+            email = dados_secao.get('email', '')
+            if whatsapp or email:
+                texto += "CONTATO:\n"
+                if whatsapp:
+                    texto += f"WhatsApp: {whatsapp}\n"
+                if email:
+                    texto += f"Email: {email}\n"
+                texto += "\n"
+    
+    return texto
+
+def formatar_repo_content(dados):
+    """Formata dados da tabela repo_content para o prompt"""
+    if not dados:
+        return ""
+    
+    texto = "\n🗂️ REPOSITÓRIO GITHUB:\n\n"
+    
+    # Prioriza arquivos importantes
+    arquivos_importantes = ['README.md', 'package.json', 'index.html']
+    
+    for item in dados[:10]:  # Limita a 10 arquivos
+        file_path = item.get('file_path', '')
+        content = item.get('content', '')
+        
+        # Prioriza arquivos importantes
+        if any(arq in file_path for arq in arquivos_importantes):
+            if content:
+                content_resumido = content[:400] + "..." if len(content) > 400 else content
+                texto += f"Arquivo: {file_path}\n{content_resumido}\n\n"
+    
+    return texto
+
+def formatar_ia_memoria(dados):
+    """Formata dados da tabela ia_memoria para o prompt"""
+    if not dados:
+        return ""
+    
+    texto = "\n🧠 MEMÓRIA DA IA (Atualizações Recentes):\n\n"
+    
+    # Ordena por data (mais recentes primeiro)
+    dados_ordenados = sorted(
+        dados, 
+        key=lambda x: x.get('criado_em', ''), 
+        reverse=True
+    )
+    
+    for item in dados_ordenados[:15]:  # Últimas 15 memórias
+        texto_memoria = item.get('texto', '')
+        origem = item.get('origem', 'desconhecida')
+        
+        if texto_memoria:
+            texto += f"[{origem}] {texto_memoria}\n"
+    
+    texto += "\n"
+    return texto
+
+def gerar_contexto_supabase():
+    """Gera contexto completo do Supabase para o prompt"""
+    contexto = "\n" + "="*80 + "\n"
+    contexto += "📊 DADOS ATUALIZADOS DO SITE E PLATAFORMA\n"
+    contexto += "="*80 + "\n"
+    
+    # Carrega e formata cada tabela
+    site_content = carregar_dados_supabase('site_content')
+    if site_content:
+        contexto += formatar_site_content(site_content)
+    
+    plataforma_info = carregar_dados_supabase('plataforma_info')
+    if plataforma_info:
+        contexto += formatar_plataforma_info(plataforma_info)
+    
+    repo_content = carregar_dados_supabase('repo_content')
+    if repo_content:
+        contexto += formatar_repo_content(repo_content)
+    
+    ia_memoria = carregar_dados_supabase('ia_memoria')
+    if ia_memoria:
+        contexto += formatar_ia_memoria(ia_memoria)
+    
+    contexto += "="*80 + "\n"
+    contexto += "⚠️ USE ESTAS INFORMAÇÕES ATUALIZADAS DO SITE REAL!\n"
+    contexto += "="*80 + "\n\n"
+    
+    return contexto
+
+# Thread de atualização automática do cache
+def thread_atualizacao_cache():
+    """Atualiza cache do Supabase periodicamente"""
+    while True:
+        try:
+            time.sleep(INTERVALO_ATUALIZACAO_CACHE)
+            print(f"\n🔄 Atualizando cache Supabase... ({datetime.now().strftime('%H:%M:%S')})")
+            
+            for tabela in ['site_content', 'plataforma_info', 'repo_content', 'ia_memoria']:
+                carregar_dados_supabase(tabela)
+            
+            print("✅ Cache atualizado com sucesso!\n")
+        except Exception as e:
+            print(f"⚠️ Erro na atualização do cache: {e}")
+
 # Inicializa Supabase
 supabase: Client = None
 try:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     print("✅ Supabase conectado")
+    
+    # Carrega dados iniciais
+    print("🔄 Carregando dados iniciais do Supabase...")
+    for tabela in ['site_content', 'plataforma_info', 'repo_content', 'ia_memoria']:
+        carregar_dados_supabase(tabela)
+    
+    # Inicia thread de atualização
+    threading.Thread(target=thread_atualizacao_cache, daemon=True).start()
+    print("✅ Sistema de cache Supabase iniciado")
+    
 except Exception as e:
     print(f"⚠️ Erro Supabase: {e}")
 
@@ -592,8 +799,8 @@ def limpar_formatacao_markdown(texto):
     
     return texto.strip()
 
-# =============================================================================
-# 🤖 OPENAI - v7.4 OTIMIZADO
+    # =============================================================================
+# 🤖 OPENAI - v7.5 COM LEITURA DO SUPABASE
 # =============================================================================
 
 def verificar_openai():
@@ -629,6 +836,9 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         print(f"   Tipo: {tipo}")
         print(f"   Nome: {nome_usuario}")
         print(f"{'='*80}\n")
+        
+        # 🆕 GERA CONTEXTO DO SUPABASE
+        contexto_supabase = gerar_contexto_supabase()
         
         # INSTRUÇÕES SOBRE SUPORTE
         if tipo == 'admin':
@@ -673,6 +883,8 @@ COMO RESPONDER:
 
 CATEGORIA DETECTADA: "{categoria}"
 SEJA EXTREMAMENTE OBJETIVO E DIRETO NESTA CATEGORIA.
+
+{contexto_supabase}
 
 DADOS OFICIAIS DA NATANSITES:
 
@@ -765,7 +977,7 @@ REGRAS CRÍTICAS:
 
 3. Primeira pessoa: Nunca diga eu desenvolvo, sempre o Natan desenvolve
 
-4. Informações verificadas: Use apenas informações reais acima
+4. Informações verificadas: Use PRIORITARIAMENTE as informações do contexto Supabase acima, que são dados reais e atualizados do site
 
 5. Naturalidade:
    - Nunca repita a pergunta do usuário
@@ -801,7 +1013,7 @@ REGRAS CRÍTICAS:
     - Nunca em respostas técnicas
     - Simples apenas: 😊 😅 🚀 ✨ 🌟 💙 ✅ 🎁 💼 👑 🌱 💎
 
-Responda de forma contextual, pessoal, natural e precisa baseando-se nas informações reais do portfólio."""
+Responda de forma contextual, pessoal, natural e precisa baseando-se nas informações reais do site e do portfólio."""
 
         contexto_memoria = obter_contexto_memoria(user_id)
         
@@ -817,7 +1029,7 @@ Responda de forma contextual, pessoal, natural e precisa baseando-se nas informa
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            max_tokens=max_tokens,  # 🎯 TOKENS VARIÁVEIS POR CATEGORIA
+            max_tokens=max_tokens,
             temperature=0.75
         )
         
@@ -885,7 +1097,7 @@ def gerar_resposta(pergunta, tipo_usuario, user_id):
                 print(f"💾 Resposta salva no cache")
             
             stats_tokens = obter_estatisticas_tokens(user_id)
-            return resposta, f"openai_memoria_{tipo}", stats_tokens
+            return resposta, f"openai_memoria_{tipo}_supabase", stats_tokens
         
         print(f"⚠️ OpenAI retornou None, usando fallback")
         nome = tipo_usuario.get('nome_real', 'Cliente')
@@ -914,12 +1126,23 @@ def health():
     with contador_lock:
         total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
     
+    # 🆕 Status do cache Supabase
+    with cache_lock:
+        cache_status = {}
+        for tabela, info in CACHE_SUPABASE.items():
+            cache_status[tabela] = {
+                'carregado': info['data'] is not None,
+                'registros': len(info['data']) if info['data'] else 0,
+                'ultima_atualizacao': info['ultima_atualizacao'].isoformat() if info['ultima_atualizacao'] else None
+            }
+    
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v7.4 - Otimização Inteligente de Tokens",
-        "versao": "7.4",
+        "sistema": "NatanAI v7.5 - Leitura Supabase + Otimização Inteligente",
+        "versao": "7.5",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
+        "supabase_cache": cache_status,
         "memoria": {
             "usuarios_ativos": usuarios_ativos,
             "total_mensagens_memoria": total_mensagens,
@@ -949,6 +1172,12 @@ def health():
             "complexo": "400 tokens"
         },
         "features": [
+            "leitura_automatica_supabase",
+            "cache_inteligente_5min",
+            "site_content_integration",
+            "plataforma_info_integration",
+            "repo_content_integration",
+            "ia_memoria_integration",
             "otimizacao_inteligente_tokens",
             "deteccao_categoria_mensagem",
             "memoria_inteligente", 
@@ -963,7 +1192,7 @@ def health():
             "adaptacao_formato_inteligente",
             "economia_maxima_tokens"
         ],
-        "economia": "Economia de até 85% em tokens para mensagens simples"
+        "economia": "Economia de até 85% em tokens + Leitura automática do site real"
     })
 
 @app.route('/chat', methods=['POST'])
@@ -1041,15 +1270,16 @@ def chat():
                 "resposta": mensagem_limite,
                 "metadata": {
                     "fonte": "limite_atingido",
-                    "sistema": "NatanAI v7.4 - Otimização Inteligente",
-                    "versao": "7.4",
+                    "sistema": "NatanAI v7.5 - Supabase + Otimização",
+                    "versao": "7.5",
                     "tipo_usuario": tipo_usuario['tipo'],
                     "plano": tipo_usuario['plano'],
                     "nome_usuario": tipo_usuario.get('nome_real', 'Cliente'),
                     "limite_atingido": True,
                     "mensagens_usadas": msgs_usadas,
                     "limite_total": "ilimitado" if limite == float('inf') else limite,
-                    "mensagens_restantes": 0
+                    "mensagens_restantes": 0,
+                    "supabase_integration": True
                 }
             })
         
@@ -1080,7 +1310,8 @@ def chat():
                 "nome": nome_usuario,
                 "fonte": fonte,
                 "validacao": valida,
-                "com_memoria": 'memoria' in fonte
+                "com_memoria": 'memoria' in fonte,
+                "com_supabase": 'supabase' in fonte
             })
             if len(HISTORICO_CONVERSAS) > 1000:
                 HISTORICO_CONVERSAS = HISTORICO_CONVERSAS[-500:]
@@ -1098,8 +1329,9 @@ def chat():
             "resposta": resposta,
             "metadata": {
                 "fonte": fonte,
-                "sistema": "NatanAI v7.4 - Otimização Inteligente",
-                "versao": "7.4",
+                "sistema": "NatanAI v7.5 - Supabase + Otimização",
+                "versao": "7.5",
+                "supabase_integration": True,
                 "otimizacao_tokens": True,
                 "tokens": stats_tokens,
                 "tipo_usuario": tipo_usuario['tipo'],
@@ -1127,7 +1359,7 @@ def chat():
         return jsonify({
             "response": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
             "resposta": "Erro técnico. Fale com Natan: (21) 99282-6074\n\nVibrações Positivas! ✨",
-            "metadata": {"fonte": "erro", "error": str(e), "versao": "7.4"}
+            "metadata": {"fonte": "erro", "error": str(e), "versao": "7.5"}
         }), 500
 
 @app.route('/estatisticas', methods=['GET'])
@@ -1142,6 +1374,7 @@ def estatisticas():
         nomes = {}
         validacoes = 0
         com_memoria = 0
+        com_supabase = 0
         
         with historico_lock:
             for c in HISTORICO_CONVERSAS:
@@ -1155,6 +1388,8 @@ def estatisticas():
                     validacoes += 1
                 if c.get("com_memoria", False):
                     com_memoria += 1
+                if c.get("com_supabase", False):
+                    com_supabase += 1
         
         with memoria_lock:
             usuarios_memoria = len(MEMORIA_USUARIOS)
@@ -1162,6 +1397,14 @@ def estatisticas():
         
         with contador_lock:
             total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
+        
+        with cache_lock:
+            cache_info = {}
+            for tabela, info in CACHE_SUPABASE.items():
+                cache_info[tabela] = {
+                    'registros': len(info['data']) if info['data'] else 0,
+                    'carregado': info['data'] is not None
+                }
         
         return jsonify({
             "total": len(HISTORICO_CONVERSAS),
@@ -1179,12 +1422,17 @@ def estatisticas():
                 "conversas_com_contexto": com_memoria,
                 "taxa_uso_memoria": round((com_memoria / len(HISTORICO_CONVERSAS)) * 100, 2)
             },
+            "supabase": {
+                "conversas_com_dados_site": com_supabase,
+                "taxa_uso_supabase": round((com_supabase / len(HISTORICO_CONVERSAS)) * 100, 2),
+                "cache": cache_info
+            },
             "limites_mensagens": {
                 "total_mensagens_enviadas": total_mensagens_enviadas,
                 "usuarios_com_contador": len(CONTADOR_MENSAGENS)
             },
-            "sistema": "NatanAI v7.4 - Otimização Inteligente de Tokens",
-            "versao": "7.4"
+            "sistema": "NatanAI v7.5 - Supabase + Otimização Inteligente",
+            "versao": "7.5"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1229,7 +1477,61 @@ def verificar_limite_endpoint(user_id):
             "limite_total": limite if limite != float('inf') else "Ilimitado",
             "mensagens_restantes": msgs_restantes if msgs_restantes != float('inf') else "Ilimitado",
             "porcentagem_uso": round((msgs_usadas / limite * 100) if limite != float('inf') else 0, 2),
-            "versao": "7.4"
+            "versao": "7.5"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/atualizar_cache', methods=['POST'])
+def atualizar_cache_manual():
+    """Endpoint para forçar atualização do cache Supabase"""
+    try:
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header:
+            return jsonify({"error": "Autorização necessária"}), 401
+        
+        print(f"\n🔄 Atualização manual do cache solicitada")
+        
+        resultados = {}
+        for tabela in ['site_content', 'plataforma_info', 'repo_content', 'ia_memoria']:
+            dados = carregar_dados_supabase(tabela)
+            resultados[tabela] = {
+                'sucesso': dados is not None,
+                'registros': len(dados) if dados else 0
+            }
+        
+        return jsonify({
+            "message": "Cache atualizado manualmente",
+            "timestamp": datetime.now().isoformat(),
+            "resultados": resultados,
+            "versao": "7.5"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/cache_status', methods=['GET'])
+def cache_status():
+    """Endpoint para verificar status do cache Supabase"""
+    try:
+        with cache_lock:
+            status = {}
+            for tabela, info in CACHE_SUPABASE.items():
+                status[tabela] = {
+                    'carregado': info['data'] is not None,
+                    'registros': len(info['data']) if info['data'] else 0,
+                    'ultima_atualizacao': info['ultima_atualizacao'].isoformat() if info['ultima_atualizacao'] else None,
+                    'tempo_desde_atualizacao': None
+                }
+                
+                if info['ultima_atualizacao']:
+                    diferenca = (datetime.now() - info['ultima_atualizacao']).total_seconds()
+                    status[tabela]['tempo_desde_atualizacao'] = f"{int(diferenca)}s"
+        
+        return jsonify({
+            "status": status,
+            "intervalo_atualizacao": f"{INTERVALO_ATUALIZACAO_CACHE}s",
+            "timestamp": datetime.now().isoformat(),
+            "versao": "7.5"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1239,7 +1541,7 @@ def ping():
     return jsonify({
         "status": "pong",
         "timestamp": datetime.now().isoformat(),
-        "version": "v7.4-otimizacao-inteligente-tokens"
+        "version": "v7.5-supabase-integration"
     })
 
 @app.route('/', methods=['GET'])
@@ -1248,7 +1550,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>NatanAI v7.4 - Otimização Inteligente</title>
+        <title>NatanAI v7.5 - Integração Supabase</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -1295,27 +1597,30 @@ def home():
             .badge.new {
                 background: #FF5722;
             }
+            .badge.supabase {
+                background: #3ECF8E;
+            }
             @keyframes pulse {
                 0%, 100% { transform: scale(1); }
                 50% { transform: scale(1.05); }
             }
             .update-box {
-                background: linear-gradient(135deg, #fff3e0, #ffe0b2);
-                padding: 20px;
-                border-radius: 15px;
-                margin: 20px 0;
-                border-left: 5px solid #FF9800;
-            }
-            .update-box h3 { color: #F57C00; margin-bottom: 10px; }
-            .optimization-info {
                 background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
                 padding: 20px;
                 border-radius: 15px;
                 margin: 20px 0;
                 border-left: 5px solid #4CAF50;
             }
-            .optimization-info h3 { color: #2E7D32; margin-bottom: 15px; }
-            .category-item {
+            .update-box h3 { color: #2E7D32; margin-bottom: 10px; }
+            .supabase-info {
+                background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 20px 0;
+                border-left: 5px solid #2196F3;
+            }
+            .supabase-info h3 { color: #1565C0; margin-bottom: 15px; }
+            .table-item {
                 display: flex;
                 justify-content: space-between;
                 padding: 10px;
@@ -1324,10 +1629,10 @@ def home():
                 border-radius: 8px;
                 font-weight: 500;
             }
-            .category-item .category-name {
+            .table-item .table-name {
                 color: #666;
             }
-            .category-item .category-tokens {
+            .table-item .table-status {
                 color: #2E7D32;
                 font-weight: bold;
             }
@@ -1400,59 +1705,48 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🧠 NatanAI v7.4 - Otimização Inteligente</h1>
-                <p style="color: #666;">Sistema de Tokens Variáveis por Categoria</p>
-                <span class="badge update">✅ v7.4</span>
-                <span class="badge new">🎯 Otimização Inteligente</span>
-                <span class="badge new">💰 Economia até 85%</span>
-                <span class="badge">Tokens Variáveis</span>
+                <h1>🧠 NatanAI v7.5 - Integração Supabase</h1>
+                <p style="color: #666;">Leitura Automática do Site Real + Otimização Inteligente</p>
+                <span class="badge update">✅ v7.5</span>
+                <span class="badge supabase">🗄️ Supabase Integration</span>
+                <span class="badge new">📊 Dados Reais do Site</span>
+                <span class="badge">Cache Inteligente</span>
             </div>
             
             <div class="update-box">
-                <h3>🆕 NOVO - Sistema v7.4 - Otimização Inteligente:</h3>
+                <h3>🆕 NOVO v7.5 - Integração com Supabase:</h3>
                 <p>
-                ✅ <strong>Tokens variáveis por categoria</strong> - Saudações (80), Despedidas (60), Casuais (80)<br>
-                ✅ <strong>Detecção automática de categoria</strong> - Sistema identifica tipo de mensagem<br>
-                ✅ <strong>Economia inteligente</strong> - Até 85% de economia em mensagens simples<br>
-                ✅ <strong>Respostas otimizadas</strong> - Tamanho adequado para cada tipo de pergunta
-                ✅ <strong>Sem treinamento via chat</strong> - Removido sistema de comandos admin que gastava tokens
+                ✅ <strong>Leitura automática de 4 tabelas:</strong> site_content, plataforma_info, repo_content, ia_memoria<br>
+                ✅ <strong>Cache inteligente:</strong> Atualização automática a cada 5 minutos<br>
+                ✅ <strong>Dados reais do site:</strong> IA responde com informações atualizadas do natansites.com.br<br>
+                ✅ <strong>Sincronização automática:</strong> Quando o webhook atualiza, IA recebe novos dados<br>
+                ✅ <strong>Contexto completo:</strong> Planos, promoções, contatos e mudanças do site<br>
+                ✅ <strong>Mantém tudo v7.4:</strong> Otimização de tokens + Memória inteligente
                 </p>
             </div>
 
-            <div class="optimization-info">
-                <h3>🎯 Otimização de Tokens por Categoria:</h3>
-                <div class="category-item">
-                    <span class="category-name">👋 Saudações (oi, olá, bom dia...)</span>
-                    <span class="category-tokens">80 tokens</span>
+            <div class="supabase-info">
+                <h3>🗄️ Tabelas Supabase Integradas:</h3>
+                <div class="table-item">
+                    <span class="table-name">📄 site_content</span>
+                    <span class="table-status">Conteúdo das páginas do site</span>
                 </div>
-                <div class="category-item">
-                    <span class="category-name">👋 Despedidas (tchau, obrigado, até...)</span>
-                    <span class="category-tokens">60 tokens</span>
+                <div class="table-item">
+                    <span class="table-name">💼 plataforma_info</span>
+                    <span class="table-status">Planos, promoções e contatos</span>
                 </div>
-                <div class="category-item">
-                    <span class="category-name">💬 Casual/Bobeiras (legal, show, kkk...)</span>
-                    <span class="category-tokens">80 tokens</span>
+                <div class="table-item">
+                    <span class="table-name">🗂️ repo_content</span>
+                    <span class="table-status">Arquivos do repositório GitHub</span>
                 </div>
-                <div class="category-item">
-                    <span class="category-name">✅ Confirmações (sim, não, ok...)</span>
-                    <span class="category-tokens">60 tokens</span>
+                <div class="table-item">
+                    <span class="table-name">🧠 ia_memoria</span>
+                    <span class="table-status">Atualizações e mudanças recentes</span>
                 </div>
-                <div class="category-item">
-                    <span class="category-name">❓ Explicações Simples (o que é, como funciona...)</span>
-                    <span class="category-tokens">200 tokens</span>
-                </div>
-                <div class="category-item">
-                    <span class="category-name">💰 Planos/Valores (preço, quanto custa...)</span>
-                    <span class="category-tokens">250 tokens</span>
-                </div>
-                <div class="category-item">
-                    <span class="category-name">🔧 Técnico (como criar, passo a passo...)</span>
-                    <span class="category-tokens">300 tokens</span>
-                </div>
-                <div class="category-item">
-                    <span class="category-name">📚 Complexo (detalhes, completo, tudo sobre...)</span>
-                    <span class="category-tokens">400 tokens</span>
-                </div>
+                <p style="margin-top: 15px; color: #666; font-size: 0.9em;">
+                    <strong>Atualização:</strong> Cache renovado automaticamente a cada 5 minutos<br>
+                    <strong>Endpoint:</strong> POST /atualizar_cache para forçar atualização manual
+                </p>
             </div>
 
             <div class="select-plan">
@@ -1468,15 +1762,18 @@ def home():
             
             <div id="chat-box" class="chat-box">
                 <div class="message bot">
-                    <strong>🤖 NatanAI v7.4:</strong><br><br>
-                    Sistema Otimizado com Inteligência de Tokens! 🎯<br><br>
-                    <strong>Como funciona:</strong><br>
-                    • Saudações/Despedidas: Respostas curtas (60-80 tokens)<br>
-                    • Bobeiras/Casual: Respostas naturais (80 tokens)<br>
-                    • Explicações: Diretas e objetivas (200-250 tokens)<br>
-                    • Técnico/Complexo: Completas quando necessário (300-400 tokens)<br><br>
-                    <strong>Teste enviando diferentes tipos de mensagem!</strong><br>
-                    Exemplos: "oi", "quanto custa", "me explica os planos", "como criar site"
+                    <strong>🤖 NatanAI v7.5:</strong><br><br>
+                    Sistema com Integração Supabase Ativa! 🗄️<br><br>
+                    <strong>Novidade:</strong> Agora eu leio dados reais do seu site!<br><br>
+                    Teste perguntando sobre:<br>
+                    • Informações do site natansites.com.br<br>
+                    • Planos e promoções atualizadas<br>
+                    • Conteúdo das páginas<br>
+                    • Mudanças recentes na plataforma<br><br>
+                    <strong>Mantém todas as features v7.4:</strong><br>
+                    • Otimização inteligente de tokens<br>
+                    • Memória de conversas<br>
+                    • Respostas personalizadas por plano
                 </div>
             </div>
             
@@ -1499,7 +1796,7 @@ def home():
                 name: 'Visitante Free',
                 email: 'free@teste.com',
                 limite: 100,
-                info: '🎁 FREE - 100 mensagens/semana (contrato 1 ano) - R$ 0,00'
+                info: '🎁 FREE - 100 mensagens/semana - R$ 0,00'
             },
             admin: {
                 plan: 'admin',
@@ -1517,7 +1814,7 @@ def home():
                 name: 'Cliente Starter',
                 email: 'starter@teste.com',
                 limite: 1250,
-                info: '🌱 STARTER - 1.250 mensagens/mês - R$320 (setup) + R$39,99/mês'
+                info: '🌱 STARTER - 1.250 mensagens/mês - R$320 + R$39,99/mês'
             },
             professional: {
                 plan: 'professional',
@@ -1526,7 +1823,7 @@ def home():
                 name: 'Cliente Pro',
                 email: 'pro@teste.com',
                 limite: 5000,
-                info: '💎 PROFESSIONAL - 5.000 mensagens/mês - R$530 (setup) + R$79,99/mês'
+                info: '💎 PROFESSIONAL - 5.000 mensagens/mês - R$530 + R$79,99/mês'
             }
         };
 
@@ -1538,17 +1835,16 @@ def home():
             document.getElementById('planInfo').textContent = planConfigs[planAtual].info;
             
             const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.4:</strong><br><br>' + 
+            chatBox.innerHTML = '<div class="message bot"><strong>🤖 NatanAI v7.5:</strong><br><br>' + 
                 planConfigs[planAtual].info + '<br><br>' +
                 '<strong>Limite:</strong> ' + (limiteAtual === Infinity ? 'Ilimitado' : limiteAtual + ' mensagens') + '<br><br>' +
-                '<strong>Otimização Inteligente Ativa!</strong><br>' +
-                'Teste diferentes tipos de mensagem:<br>' +
-                '• "oi" ou "olá" (saudação - 80 tokens)<br>' +
-                '• "obrigado" ou "tchau" (despedida - 60 tokens)<br>' +
-                '• "legal" ou "show" (casual - 80 tokens)<br>' +
-                '• "quanto custa" (planos - 250 tokens)<br>' +
-                '• "me explica os planos" (explicação - 200 tokens)<br>' +
-                '• "como criar um site" (técnico - 300 tokens)' +
+                '<strong>Integração Supabase Ativa! 🗄️</strong><br>' +
+                'Pergunte sobre informações do site real!<br><br>' +
+                'Exemplos:<br>' +
+                '• "Me fale sobre os planos"<br>' +
+                '• "Qual o conteúdo da página inicial?"<br>' +
+                '• "Tem alguma promoção?"<br>' +
+                '• "Como faço para contratar?"' +
                 '</div>';
         }
 
@@ -1591,14 +1887,13 @@ def home():
                 const limiteAtingido = data.metadata && data.metadata.limite_atingido;
                 const messageClass = limiteAtingido ? 'bot" style="background: #fff3e0; border-left-color: #FF9800;' : 'bot';
                 
-                // Mostra informações de otimização se disponível
                 let tokensInfo = '';
                 if (data.metadata && data.metadata.tokens) {
                     const tokens = data.metadata.tokens;
-                    tokensInfo = `<br><br><small style="color: #666;">📊 Tokens: ${tokens.total_geral || 'N/A'} | Média: ${tokens.media_por_mensagem || 'N/A'}</small>`;
+                    tokensInfo = `<br><br><small style="color: #666;">📊 Tokens: ${tokens.total_geral || 'N/A'} | 🗄️ Supabase: ${data.metadata.supabase_integration ? 'Ativo' : 'Inativo'}</small>`;
                 }
                 
-                chatBox.innerHTML += '<div class="message ' + messageClass + '"><strong>🤖 NatanAI v7.4:</strong><br><br>' + resp + tokensInfo + '</div>';
+                chatBox.innerHTML += '<div class="message ' + messageClass + '"><strong>🤖 NatanAI v7.5:</strong><br><br>' + resp + tokensInfo + '</div>';
                 
                 if (data.metadata && data.metadata.limite_mensagens && !limiteAtingido) {
                     mensagensEnviadas = data.metadata.limite_mensagens.mensagens_usadas;
@@ -1606,7 +1901,7 @@ def home():
                     mensagensEnviadas++;
                 }
                 
-                console.log('✅ Metadata v7.4:', data.metadata);
+                console.log('✅ Metadata v7.5:', data.metadata);
                 
             } catch (error) {
                 chatBox.innerHTML += '<div class="message bot" style="background: #ffebee; border-left-color: #f44336;"><strong>🤖 NatanAI:</strong><br>Erro: ' + error.message + '</div>';
@@ -1622,7 +1917,7 @@ def home():
 
 if __name__ == '__main__':
     print("\n" + "="*80)
-    print("🧠 NATANAI v7.4 - OTIMIZAÇÃO INTELIGENTE DE TOKENS")
+    print("🧠 NATANAI v7.5 - INTEGRAÇÃO SUPABASE + OTIMIZAÇÃO INTELIGENTE")
     print("="*80)
     print("💰 VALORES:")
     print("   🎁 FREE: R$ 0,00 (contrato 1 ano)")
@@ -1635,42 +1930,33 @@ if __name__ == '__main__':
     print("   💎 PROFESSIONAL: 5.000 mensagens/mês")
     print("   👑 ADMIN: ∞ Ilimitado")
     print("")
-    print("🎯 OTIMIZAÇÃO DE TOKENS v7.4:")
+    print("🗄️ INTEGRAÇÃO SUPABASE v7.5:")
+    print("   📄 site_content: Conteúdo das páginas")
+    print("   💼 plataforma_info: Planos e promoções")
+    print("   🗂️ repo_content: Arquivos GitHub")
+    print("   🧠 ia_memoria: Atualizações recentes")
+    print("   ⏱️ Cache: Atualização a cada 5 minutos")
+    print("")
+    print("🎯 OTIMIZAÇÃO DE TOKENS v7.4 (mantida):")
     print("   👋 Saudações: 80 tokens")
     print("   👋 Despedidas: 60 tokens")
-    print("   💬 Casual/Bobeiras: 80 tokens")
+    print("   💬 Casual: 80 tokens")
     print("   ✅ Confirmações: 60 tokens")
-    print("   ❓ Explicações Simples: 200 tokens")
-    print("   💰 Planos/Valores: 250 tokens")
+    print("   ❓ Explicações: 200 tokens")
+    print("   💰 Planos: 250 tokens")
     print("   🔧 Técnico: 300 tokens")
     print("   📚 Complexo: 400 tokens")
     print("")
-    print("✨ FEATURES v7.4:")
-    print("   ✅ Detecção automática de categoria")
-    print("   ✅ Tokens variáveis por tipo de mensagem")
-    print("   ✅ Economia de até 85% em mensagens simples")
-    print("   ✅ Respostas otimizadas para cada categoria")
-    print("   ✅ Removido sistema de treinamento via chat (economia)")
-    print("   ✅ Sem comandos admin que gastavam tokens")
-    print("   ✅ Sistema de memória inteligente mantido")
-    print("   ✅ Validação e segurança mantidas")
-    print("")
-    print("🔧 COMPARAÇÃO DE ECONOMIA:")
-    print("   • v7.3 (fixo): 650 tokens para TODAS as mensagens")
-    print("   • v7.4 (inteligente):")
-    print("     - Saudação 'oi': 80 tokens (87% economia)")
-    print("     - Despedida 'tchau': 60 tokens (90% economia)")
-    print("     - Casual 'legal': 80 tokens (87% economia)")
-    print("     - Planos 'quanto custa': 250 tokens (61% economia)")
-    print("     - Explicação simples: 200 tokens (69% economia)")
-    print("     - Técnico: 300 tokens (54% economia)")
-    print("     - Complexo: 400 tokens (38% economia)")
-    print("")
-    print("💰 ESTIMATIVA DE CUSTOS (GPT-4o-mini):")
-    print("   • Input: $0.150 / 1M tokens")
-    print("   • Output: $0.600 / 1M tokens")
-    print("   • Economia média: ~70% vs v7.3")
-    print("   • Com $5: ~18.000-20.000 mensagens (vs 12.307 na v7.3)")
+    print("✨ FEATURES v7.5:")
+    print("   ✅ Leitura automática do Supabase")
+    print("   ✅ Cache inteligente (5 minutos)")
+    print("   ✅ Dados reais do site natansites.com.br")
+    print("   ✅ Sincronização com webhook atualizar-ia.js")
+    print("   ✅ Contexto completo (site + planos + GitHub)")
+    print("   ✅ Todas features v7.4 mantidas")
+    print("   ✅ Otimização de tokens por categoria")
+    print("   ✅ Sistema de memória inteligente")
+    print("   ✅ Validação e segurança")
     print("="*80 + "\n")
     
     print(f"OpenAI: {'✅' if verificar_openai() else '⚠️'}")
@@ -1679,6 +1965,8 @@ if __name__ == '__main__':
     print(f"Sistema de Limites: ✅ Ativo")
     print(f"Limpeza de Formatação: ✅ Ativa")
     print(f"Otimização Inteligente: ✅ Ativa (v7.4)")
-    print(f"Categorias: ✅ {len(CATEGORIAS_MENSAGEM)} categorias detectáveis\n")
+    print(f"Integração Supabase: ✅ Ativa (v7.5)")
+    print(f"Cache Automático: ✅ Ativo (5 min)\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    
