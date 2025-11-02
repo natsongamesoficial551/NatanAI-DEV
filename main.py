@@ -850,9 +850,7 @@ def processar_openai(pergunta, tipo_usuario, user_id):
         print(f"   Tipo: {tipo}")
         print(f"   Nome: {nome_usuario}")
         print(f"{'='*80}\n")
-        
-        # 🆕 GERA CONTEXTO DO SUPABASE
-        contexto_supabase = gerar_contexto_supabase()
+
         
         # INSTRUÇÕES SOBRE SUPORTE
         if tipo == 'admin':
@@ -886,25 +884,7 @@ COMO RESPONDER:
         
         prompt_sistema = f"""Você é NatanAI, assistente virtual da NatanSites.
 
-{ctx}
-
-{info_pessoal}
-
-{suporte_info}
-
-⚡ INSTRUÇÃO DE TAMANHO CRÍTICA - OBRIGATÓRIA:
-{instrucao_tamanho}
-
-🔥 ATENÇÃO ESPECIAL SOBRE PROMOÇÕES:
-- SE houver QUALQUER informação sobre promoção no contexto abaixo, você DEVE mencionar!
-- SEMPRE verifique a seção "PROMOÇÃO ATIVA" no contexto
-- Se alguém perguntar sobre promoções, preços especiais ou descontos, consulte primeiro o contexto
-- A informação de promoção tem PRIORIDADE MÁXIMA sobre qualquer outro dado
-
-CATEGORIA DETECTADA: "{categoria}"
-SEJA EXTREMAMENTE OBJETIVO E DIRETO NESTA CATEGORIA.
-
-{contexto_supabase}
+        
 
 DADOS OFICIAIS DA NATANSITES:
 
