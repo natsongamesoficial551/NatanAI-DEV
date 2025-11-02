@@ -181,8 +181,8 @@ def formatar_site_content(dados):
         content = item.get('content', '')
         
         if content:
-            # Limita conteúdo por página
-            content_resumido = content[:500] + "..." if len(content) > 500 else content
+            # 🆕 AUMENTA LIMITE DE 500 PARA 3000 CARACTERES
+            content_resumido = content[:3732] + "..." if len(content) > 3732 else content
             texto += f"Página: {page}\n{content_resumido}\n\n"
     
     return texto
