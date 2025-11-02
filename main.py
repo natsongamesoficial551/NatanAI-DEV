@@ -119,22 +119,36 @@ INTERVALO_ATUALIZACAO_CACHE = 300  # 5 minutos
 cache_lock = threading.Lock()
 
 def carregar_dados_supabase(tabela):
-    """Carrega dados de uma tabela do Supabase com cache"""
     try:
         if not supabase:
-            print(f"⚠️ Supabase não conectado para tabela: {tabela}")
             return None
         
-        with cache_lock:
-            cache_entry = CACHE_SUPABASE.get(tabela)
-            agora = datetime.now()
+        # 🆕 ORDENA POR DATA MAIS RECENTE
+        if tabela == 'site_content':
+            # Para cada página, pega só o registro mais recente
+            response = supabase.table(tabela)\
+                .select('*')\
+                .order('scraped_at', desc=True)\
+                .execute()
+        else:
+            response = supabase.table(tabela).select('*').execute()
+        
+        if response.data:
+            # 🆕 Remove duplicatas, mantém só mais recente
+            if tabela == 'site_content':
+                dados_unicos = {}
+                for item in response.data:
+                    page = item.get('page_name')
+                    if page not in dados_unicos:
+                        dados_unicos[page] = item
+                
+                response.data = list(dados_unicos.values())
             
-            # Verifica se cache é válido
-            if cache_entry['data'] and cache_entry['ultima_atualizacao']:
-                diferenca = (agora - cache_entry['ultima_atualizacao']).total_seconds()
-                if diferenca < INTERVALO_ATUALIZACAO_CACHE:
-                    print(f"📦 Cache válido para {tabela} ({int(diferenca)}s)")
-                    return cache_entry['data']
+            with cache_lock:
+                CACHE_SUPABASE[tabela]['data'] = response.data
+                CACHE_SUPABASE[tabela]['ultima_atualizacao'] = agora
+            
+            return response.data
         
         # Busca dados do Supabase
         print(f"🔄 Carregando dados da tabela: {tabela}")
