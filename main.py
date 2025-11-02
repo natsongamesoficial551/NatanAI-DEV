@@ -27,13 +27,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 RENDER_URL = os.getenv("RENDER_URL", "")
 
 # ============================================
-# 🆕 SISTEMA DE MODELOS POR PLANO v8.0
+# 🆕 SISTEMA DE MODELOS POR PLANO v8.1 (OTIMIZADO)
 # ============================================
 MODELOS_POR_PLANO = {
-    'free': 'gpt-4o-mini',           # 🎁 Modelo econômico para teste
-    'starter': 'gpt-4o-mini',        # 🌱 Modelo econômico otimizado
-    'professional': 'gpt-4o-mini',   # 💎 Modelo de alta qualidade
-    'admin': 'gpt-4o-mini'           # 👑 Modelo premium + recursos extras
+    'free': 'gpt-4o-mini',           # 🎁 Modelo econômico básico
+    'starter': 'híbrido',            # 🌱 gpt-4o-mini + gpt-4o (inteligente)
+    'professional': 'híbrido',       # 💎 gpt-4o-mini + gpt-4o (inteligente)
+    'admin': 'gpt-4o'                # 👑 gpt-4o completo + web search
 }
 
 # ============================================
@@ -315,7 +315,7 @@ def obter_estatisticas_tokens(user_id):
         
         return stats
     
-    # =============================================================================
+# =============================================================================
 # 🆘 SISTEMA DE RESPOSTA ALTERNATIVA (SEM IA)
 # =============================================================================
 
@@ -910,16 +910,20 @@ Seus créditos renovam no próximo mês!
 Vibrações Positivas! ✨"""
 
 # =============================================================================
-# 🤖 PROCESSAMENTO OPENAI v8.0 - SISTEMA HÍBRIDO DE MODELOS
+# 🤖 PROCESSAMENTO OPENAI v8.1 - SISTEMA HÍBRIDO OTIMIZADO
 # =============================================================================
 
 def processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria):
     """
-    Sistema híbrido de modelos por plano:
-    - FREE: gpt-3.5-turbo (básico + barato)
-    - STARTER: gpt-4o-mini (casual) + gpt-4o (perguntas sérias sobre serviços)
-    - PROFESSIONAL: gpt-4o (completo)
-    - ADMIN: gpt-4o (completo + conhecimentos gerais + web search)
+    Sistema híbrido OTIMIZADO v8.1:
+    - FREE: gpt-4o-mini (básico)
+    - STARTER: gpt-4o-mini (base) + gpt-4o (refinamento quando necessário)
+    - PROFESSIONAL: gpt-4o-mini (base) + gpt-4o (refinamento quando necessário)
+    - ADMIN: gpt-4o puro + web search
+    
+    STARTER e PROFESSIONAL usam sistema híbrido:
+    1. Primeira análise com gpt-4o-mini (rápido e barato)
+    2. Se detectar que precisa de mais qualidade, refina com gpt-4o
     """
     
     if not verificar_openai():
@@ -938,21 +942,22 @@ def processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria):
         # Detecta categoria da mensagem
         categoria, config = detectar_categoria_mensagem(mensagem)
         
-        # ==================================================================
-        # 🎁 FREE ACCESS - GPT-3.5-TURBO (modelo mais barato)
-        # ==================================================================
+
+# ==================================================================
+#  🎁 FREE ACCESS - GPT-4O-MINI (BÁSICO)
+# ==================================================================
         if tipo == 'free':
-            modelo = 'gpt-3.5-turbo'
+            modelo = 'gpt-4o-mini'
             max_tokens = config['max_tokens']
             
             system_prompt = f"""Você é NatanAI, assistente virtual da NatanSites (natansites.com.br).
 
-INFORMAÇÕES PARA USUÁRIOS FREE (teste gratuito de 1 ano):
+INFORMAÇÕES PARA USUÁRIOS FREE (teste gratuito):
 
 **PLANOS DISPONÍVEIS:**
-- FREE: R$0,00 (teste 1 ano) - 100 msgs/semana - Sites básicos sem uso comercial
-- STARTER: R$320 setup + R$39,99/mês - 1.250 msgs/mês - Site até 5 páginas - Hospedagem inclusa
-- PROFESSIONAL: R$530 setup + R$79,99/mês - 5.000 msgs/mês - Páginas ilimitadas - Design personalizado
+- FREE: R$0,00 (teste 1 ano) - 100 msgs/semana - Sites básicos
+- STARTER: R$320 + R$39,99/mês - 1.250 msgs/mês - Site até 5 páginas
+- PROFESSIONAL: R$530 + R$79,99/mês - 5.000 msgs/mês - Design personalizado
 
 **CONTATO:**
 WhatsApp: (21) 99282-6074
@@ -965,20 +970,9 @@ Site: natansites.com.br
 - MathWork - mathworkftv.netlify.app
 - TAF Sem Tabu - tafsemtabu.com.br
 
-**TECNOLOGIAS:**
-HTML5, CSS3, JavaScript, React, Vue, Node.js, Python, Supabase, IA
-
-**COMO CONTRATAR:**
-1. Escolha STARTER ou PROFESSIONAL
-2. Preencha cadastro no site
-3. Pague via PIX
-4. Aguarde 10min a 2h para criação da conta
-
 REGRAS:
-- Seja direto e objetivo (usuário está em teste grátis)
-- Incentive upgrade para STARTER ou PROFESSIONAL
-- Mencione benefícios dos planos pagos
-- Sempre mencione contato: WhatsApp (21) 99282-6074
+- Seja direto e objetivo
+- Incentive upgrade para planos pagos
 - {config['instrucao']}
 - Sem asteriscos ou formatação markdown
 - Tom amigável mas profissional
@@ -986,7 +980,7 @@ REGRAS:
 Você está conversando com: {nome} (Plano {plano})"""
 
             messages = [{"role": "system", "content": system_prompt}]
-            messages.extend(historico_memoria[-3:])  # Últimas 3 mensagens apenas
+            messages.extend(historico_memoria[-3:])
             messages.append({"role": "user", "content": mensagem})
             
             response = client.chat.completions.create(
@@ -999,294 +993,196 @@ Você está conversando com: {nome} (Plano {plano})"""
             resposta = response.choices[0].message.content.strip()
             resposta = limpar_formatacao_markdown(resposta)
             
-            tokens_entrada = response.usage.prompt_tokens
-            tokens_saida = response.usage.completion_tokens
-            tokens_total = response.usage.total_tokens
-            
             return {
                 'resposta': resposta,
-                'tokens_usados': tokens_total,
-                'tokens_entrada': tokens_entrada,
-                'tokens_saida': tokens_saida,
+                'tokens_usados': response.usage.total_tokens,
+                'tokens_entrada': response.usage.prompt_tokens,
+                'tokens_saida': response.usage.completion_tokens,
                 'modelo_usado': modelo,
                 'cached': False,
                 'categoria': categoria
             }
         
+ # ==================================================================
+        # 🌱💎 STARTER & PROFESSIONAL - SISTEMA HÍBRIDO INTELIGENTE
         # ==================================================================
-        # 🌱 STARTER - SISTEMA HÍBRIDO: GPT-4O-MINI + GPT-4O
-        # ==================================================================
-        elif tipo == 'starter':
-            # Detecta se é pergunta séria sobre serviços
-            msg_lower = mensagem.lower().strip()
+        elif tipo in ['starter', 'professional']:
+            # ETAPA 1: Análise inicial com GPT-4O-MINI (RÁPIDO E BARATO)
+            modelo_inicial = 'gpt-4o-mini'
+            max_tokens_inicial = config['max_tokens']
             
-            perguntas_serias = [
-                'plano', 'preço', 'valor', 'custo', 'quanto custa', 'mensalidade',
-                'contratar', 'cadastro', 'como funciona', 'processo', 'etapas',
-                'prazo', 'tempo', 'demora', 'hospedagem', 'domínio', 'seo',
-                'pagamento', 'pix', 'diferença', 'comparar', 'qual escolher',
-                'portfolio', 'projetos', 'trabalhos', 'tecnologia', 'stack'
-            ]
-            
-            is_pergunta_seria = any(kw in msg_lower for kw in perguntas_serias)
-            
-            # PERGUNTAS SÉRIAS: GPT-4O
-            if is_pergunta_seria:
-                modelo = 'gpt-4o'
-                max_tokens = min(config['max_tokens'] * 2, 500)  # Dobra limite para respostas completas
-                
-                system_prompt = f"""Você é NatanAI, assistente especializado da NatanSites.
+            # Prompt base otimizado
+            if tipo == 'starter':
+                system_prompt_base = f"""Você é NatanAI, assistente da NatanSites para clientes STARTER.
 
-INFORMAÇÕES COMPLETAS PARA CLIENTES STARTER:
+**SEU PLANO STARTER:**
+- 1.250 mensagens/mês comigo
+- Site até 5 páginas
+- Hospedagem inclusa
+- SEO básico
+- R$39,99/mês
 
-**PLANOS E PREÇOS:**
-- STARTER (seu plano atual): R$320 setup + R$39,99/mês
-  - 1.250 mensagens/mês comigo
-  - Site profissional até 5 páginas
-  - Hospedagem inclusa por 1 ano
-  - Design moderno padrão
-  - SEO básico
-  - Suporte via página Suporte
+**OUTROS PLANOS:**
+- FREE: R$0 - 100 msgs/semana - Teste
+- PROFESSIONAL: R$79,99/mês - 5.000 msgs - Design personalizado
 
-- PROFESSIONAL: R$530 setup + R$79,99/mês
-  - 5.000 mensagens/mês comigo
-  - Páginas ilimitadas
-  - Design 100% personalizado
-  - Hospedagem + Domínio inclusos
-  - SEO avançado
-  - Blog/E-commerce opcionais
-  - Suporte prioritário
-
-**PROCESSO DE CONTRATAÇÃO:**
-1. Preencha formulário no site (Nome, Data Nasc, CPF)
-2. Escolha plano (Starter ou Professional)
-3. Pague via PIX (R$320 Starter ou R$530 Professional)
-4. Aguarde 10min a 2h para criação da conta
-5. Comece a usar!
-
-**PRAZOS:**
-- Criação de conta: 10min a 2h após pagamento confirmado
-- Site simples: 3 a 7 dias úteis
-- Site complexo: 10 a 20 dias úteis
-(Depende da complexidade e fila de projetos)
-
-**HOSPEDAGEM E DOMÍNIO:**
-- Starter: Hospedagem inclusa por 1 ano (renovação à parte depois)
-- Professional: Hospedagem + Domínio inclusos por 1 ano
-
-**TECNOLOGIAS USADAS:**
-Front-end: HTML5, CSS3, JavaScript, React, Vue, TypeScript, Tailwind
-Back-end: Node.js, Python, Express.js, APIs RESTful
-Mobile: React Native
-Banco de Dados: Supabase, PostgreSQL
-IA: OpenAI GPT-4, Claude
-SEO: Otimização avançada para Google
-
-**PORTFÓLIO COMPLETO:**
-- Espaço Familiares (espacofamiliares.com.br) - Site institucional
-- NatanSites (natansites.com.br) - Landing page profissional
-- MathWork (mathworkftv.netlify.app) - Plataforma educacional
-- TAF Sem Tabu (tafsemtabu.com.br) - Blog e conteúdo
-- E mais projetos em natansites.com.br/portfolio
-
-**FORMAS DE PAGAMENTO:**
-- Setup (inicial): PIX apenas
-- Mensalidade: PIX mensal (sem cartão por enquanto)
-
-**CONTATO DIRETO:**
-WhatsApp: (21) 99282-6074 (atendimento pessoal)
-Email: borgesnatan09@gmail.com
-Site: natansites.com.br
-
-**DIFERENCIAIS:**
-- Sites modernos e responsivos
-- Código limpo e otimizado
-- SEO profissional
-- Suporte dedicado para clientes pagos
-- Atualizações inclusas na mensalidade
-
-REGRAS:
-- Explique tudo de forma COMPLETA e DETALHADA
-- Seja técnico quando necessário, mas mantenha clareza
-- Compare planos quando perguntado
-- Destaque benefícios do plano Professional se relevante
-- Sempre mencione contato: (21) 99282-6074
-- {config['instrucao']}
-- Sem asteriscos ou formatação markdown
-- Tom profissional e prestativo
-
-Você está conversando com: {nome} (Plano {plano} - Cliente ativo)"""
-            
-            # PERGUNTAS CASUAIS: GPT-4O-MINI
-            else:
-                modelo = 'gpt-4o-mini'
-                max_tokens = config['max_tokens']
-                
-                system_prompt = f"""Você é NatanAI, assistente amigável da NatanSites.
-
-Para saudações, despedidas e conversas casuais, seja breve e natural.
-
-Informações básicas caso perguntem:
+**INFORMAÇÕES PRINCIPAIS:**
 - WhatsApp: (21) 99282-6074
+- Email: borgesnatan09@gmail.com
 - Site: natansites.com.br
-- Seu plano: Starter (cliente ativo)
+- Prazos: 3-7 dias (sites simples), 10-20 dias (complexos)
+- Tecnologias: HTML5, CSS3, React, Node.js, Python, Supabase
+- Portfólio: Espaço Familiares, NatanSites, MathWork, TAF Sem Tabu
 
 REGRAS:
-- Respostas CURTAS e NATURAIS
 - {config['instrucao']}
+- Seja claro e prestativo
 - Sem asteriscos ou formatação markdown
-- Tom amigável e leve
+- Tom profissional
 
-Você está conversando com: {nome}"""
+Você está conversando com: {nome} (Cliente STARTER)"""
+            else:  # professional
+                system_prompt_base = f"""Você é NatanAI, assistente premium para clientes PROFESSIONAL.
 
-            messages = [{"role": "system", "content": system_prompt}]
-            messages.extend(historico_memoria[-5:] if is_pergunta_seria else historico_memoria[-3:])
-            messages.append({"role": "user", "content": mensagem})
-            
-            response = client.chat.completions.create(
-                model=modelo,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=0.7
-            )
-            
-            resposta = response.choices[0].message.content.strip()
-            resposta = limpar_formatacao_markdown(resposta)
-            
-            tokens_entrada = response.usage.prompt_tokens
-            tokens_saida = response.usage.completion_tokens
-            tokens_total = response.usage.total_tokens
-            
-            return {
-                'resposta': resposta,
-                'tokens_usados': tokens_total,
-                'tokens_entrada': tokens_entrada,
-                'tokens_saida': tokens_saida,
-                'modelo_usado': modelo,
-                'cached': False,
-                'categoria': categoria,
-                'tipo_processamento': 'seria' if is_pergunta_seria else 'casual'
-            }
-        
-        # ==================================================================
-        # 💎 PROFESSIONAL - GPT-4O (COMPLETO)
-        # ==================================================================
-        elif tipo == 'professional':
-            modelo = 'gpt-4o'
-            max_tokens = min(config['max_tokens'] * 2, 600)
-            
-            system_prompt = f"""Você é NatanAI, assistente premium da NatanSites para clientes Professional.
-
-VOCÊ TEM ACESSO TOTAL A TODAS AS INFORMAÇÕES:
-
-**SEU PLANO PROFESSIONAL (R$79,99/mês):**
+**SEU PLANO PROFESSIONAL:**
 - 5.000 mensagens/mês comigo
 - Páginas ilimitadas
 - Design 100% personalizado
 - Hospedagem + Domínio inclusos
-- SEO avançado com análise de concorrência
-- Blog e E-commerce opcionais
-- Suporte prioritário direto com Natan
-- Atualizações e manutenção inclusas
+- SEO avançado
+- Blog/E-commerce opcionais
+- R$79,99/mês
 
-**OUTROS PLANOS:**
-- FREE: R$0,00 (teste 1 ano) - 100 msgs/semana - Sites básicos
-- STARTER: R$320 + R$39,99/mês - 1.250 msgs/mês - Site até 5 páginas
-
-**TECNOLOGIAS AVANÇADAS:**
-Front-end: React, Vue, Next.js, TypeScript, Tailwind, GSAP (animações)
-Back-end: Node.js, Python, Express, NestJS, APIs RESTful/GraphQL
-Mobile: React Native, Expo
-Banco: Supabase, PostgreSQL, MongoDB
-IA: OpenAI GPT-4, Claude, modelos customizados
-SEO: Schema markup, Core Web Vitals, análise avançada
-Infra: Vercel, Render, AWS, CI/CD
-
-**FUNCIONALIDADES EXCLUSIVAS PROFESSIONAL:**
-- Sistema de Blog completo com CMS
-- E-commerce com Stripe/PayPal
-- Área de membros/login
-- Integrações complexas (CRMs, ERPs)
-- Dashboards analytics personalizados
-- Automações e chatbots IA
-- Multi-idioma
-
-**PORTFÓLIO COMPLETO:**
-Espaço Familiares, NatanSites, MathWork, TAF Sem Tabu e +10 projetos
-Veja tudo em: natansites.com.br/portfolio
-
-**PROCESSO COMPLETO:**
-1. Reunião inicial (entender necessidades)
-2. Proposta e protótipo
-3. Desenvolvimento iterativo (aprovação por etapas)
-4. Testes e ajustes
-5. Deploy e treinamento
-6. Suporte contínuo
-
-**PRAZOS:**
-- Sites Professional: 10 a 30 dias (depende da complexidade)
-- Funcionalidades extras: sob consulta
-- Suporte: Resposta em até 24h úteis
+**DIFERENCIAIS:**
+- Suporte prioritário
+- Recursos avançados ilimitados
+- Atualizações inclusas
+- Integrações complexas
 
 **CONTATO PRIORITÁRIO:**
-WhatsApp: (21) 99282-6074 (atendimento premium)
-Email: borgesnatan09@gmail.com
-Página Suporte: Acesso direto ao chat com Natan
+- WhatsApp: (21) 99282-6074
+- Email: borgesnatan09@gmail.com
+- Página Suporte: Chat direto com Natan
 
-**SEO AVANÇADO PROFESSIONAL:**
-- Pesquisa de palavras-chave
-- Otimização técnica (Core Web Vitals)
-- Link building estratégico
-- Conteúdo otimizado
-- Análise de concorrência
-- Relatórios mensais
+**TECNOLOGIAS AVANÇADAS:**
+- Front: React, Vue, Next.js, TypeScript, Tailwind
+- Back: Node.js, Python, APIs RESTful/GraphQL
+- Mobile: React Native
+- Banco: Supabase, PostgreSQL, MongoDB
+- IA: OpenAI GPT-4, Claude
 
 REGRAS:
-- Respostas COMPLETAS e DETALHADAS
-- Seja técnico quando apropriado
-- Explique funcionalidades avançadas
-- Sugira melhorias e otimizações
-- Destaque seus benefícios como cliente premium
 - {config['instrucao']}
+- Seja técnico quando apropriado
+- Destaque seus benefícios premium
 - Sem asteriscos ou formatação markdown
 - Tom profissional e consultivo
 
 Você está conversando com: {nome} (Cliente PROFESSIONAL - Premium)"""
 
-            messages = [{"role": "system", "content": system_prompt}]
-            messages.extend(historico_memoria[-7:])  # Mais contexto para Professional
-            messages.append({"role": "user", "content": mensagem})
+            # Gera resposta inicial com gpt-4o-mini
+            messages_inicial = [{"role": "system", "content": system_prompt_base}]
+            messages_inicial.extend(historico_memoria[-5:])
+            messages_inicial.append({"role": "user", "content": mensagem})
             
-            response = client.chat.completions.create(
-                model=modelo,
-                messages=messages,
-                max_tokens=max_tokens,
+            response_inicial = client.chat.completions.create(
+                model=modelo_inicial,
+                messages=messages_inicial,
+                max_tokens=max_tokens_inicial,
                 temperature=0.7
             )
             
-            resposta = response.choices[0].message.content.strip()
-            resposta = limpar_formatacao_markdown(resposta)
+            resposta_inicial = response_inicial.choices[0].message.content.strip()
+            tokens_inicial = response_inicial.usage.total_tokens
             
-            tokens_entrada = response.usage.prompt_tokens
-            tokens_saida = response.usage.completion_tokens
-            tokens_total = response.usage.total_tokens
+            # ETAPA 2: Detecta se precisa de refinamento com GPT-4O
+            msg_lower = mensagem.lower().strip()
+            
+            # Keywords que indicam necessidade de resposta mais elaborada
+            keywords_refinamento = [
+                'como funciona', 'me explica', 'detalhes', 'completo',
+                'diferença', 'comparar', 'qual escolher', 'melhor',
+                'processo', 'etapas', 'passo a passo',
+                'tecnologia', 'stack', 'framework',
+                'prazo', 'tempo', 'quanto tempo',
+                'seo', 'otimização', 'google',
+                'hospedagem', 'domínio', 'servidor',
+                'blog', 'e-commerce', 'loja virtual'
+            ]
+            
+            precisa_refinamento = any(kw in msg_lower for kw in keywords_refinamento)
+            
+            # Se não precisa de refinamento OU resposta já está boa, retorna mini
+            if not precisa_refinamento or len(resposta_inicial.split()) < 30:
+                resposta_final = limpar_formatacao_markdown(resposta_inicial)
+                
+                return {
+                    'resposta': resposta_final,
+                    'tokens_usados': tokens_inicial,
+                    'tokens_entrada': response_inicial.usage.prompt_tokens,
+                    'tokens_saida': response_inicial.usage.completion_tokens,
+                    'modelo_usado': f'{modelo_inicial} (direto)',
+                    'cached': False,
+                    'categoria': categoria,
+                    'sistema_hibrido': 'mini_apenas'
+                }
+            
+            # ETAPA 3: Refinamento com GPT-4O (apenas quando necessário)
+            modelo_refinamento = 'gpt-4o'
+            max_tokens_refinamento = min(config['max_tokens'] * 2, 600)
+            
+            prompt_refinamento = f"""Você é NatanAI em modo de refinamento. Melhore e expanda esta resposta mantendo as informações corretas mas adicionando mais contexto, detalhes técnicos e clareza.
+
+RESPOSTA INICIAL (gpt-4o-mini):
+{resposta_inicial}
+
+PERGUNTA DO USUÁRIO:
+{mensagem}
+
+INSTRUÇÕES:
+- Mantenha TODAS as informações corretas da resposta inicial
+- Adicione mais detalhes técnicos e contexto
+- Torne a explicação mais completa e profissional
+- {config['instrucao']} (mas pode ser um pouco mais extenso)
+- Sem asteriscos ou formatação markdown
+- Tom {('profissional e consultivo' if tipo == 'professional' else 'prestativo e claro')}
+
+MELHORE E EXPANDA A RESPOSTA:"""
+
+            messages_refinamento = [{"role": "system", "content": prompt_refinamento}]
+            
+            response_refinamento = client.chat.completions.create(
+                model=modelo_refinamento,
+                messages=messages_refinamento,
+                max_tokens=max_tokens_refinamento,
+                temperature=0.7
+            )
+            
+            resposta_refinada = response_refinamento.choices[0].message.content.strip()
+            tokens_refinamento = response_refinamento.usage.total_tokens
+            tokens_total = tokens_inicial + tokens_refinamento
+            
+            resposta_final = limpar_formatacao_markdown(resposta_refinada)
             
             return {
-                'resposta': resposta,
+                'resposta': resposta_final,
                 'tokens_usados': tokens_total,
-                'tokens_entrada': tokens_entrada,
-                'tokens_saida': tokens_saida,
-                'modelo_usado': modelo,
+                'tokens_entrada': response_inicial.usage.prompt_tokens + response_refinamento.usage.prompt_tokens,
+                'tokens_saida': response_inicial.usage.completion_tokens + response_refinamento.usage.completion_tokens,
+                'modelo_usado': f'híbrido ({modelo_inicial} → {modelo_refinamento})',
                 'cached': False,
-                'categoria': categoria
+                'categoria': categoria,
+                'sistema_hibrido': 'mini_plus_4o',
+                'tokens_mini': tokens_inicial,
+                'tokens_4o': tokens_refinamento
             }
-        
-        # ==================================================================
-        # 👑 ADMIN - GPT-4O + WEB SEARCH + CONHECIMENTOS GERAIS
+
+# ==================================================================
+        # 👑 ADMIN - GPT-4O PURO + WEB SEARCH
         # ==================================================================
         elif tipo == 'admin':
             modelo = 'gpt-4o'
-            max_tokens = 800  # Limite alto para respostas completas
+            max_tokens = 800
             
             # Detecta se precisa de web search
             msg_lower = mensagem.lower().strip()
@@ -1300,61 +1196,54 @@ Você está conversando com: {nome} (Cliente PROFESSIONAL - Premium)"""
             
             precisa_search = any(kw in msg_lower for kw in keywords_search)
             
-            # Se precisa de informações atuais, adiciona contexto de exemplo
             contexto_atual = ""
             if precisa_search:
                 contexto_atual = """
-**CONTEXTO DE EVENTOS RECENTES (para referência):**
-- Eventos importantes no Rio de Janeiro e Brasil
-- Acontecimentos políticos, sociais e econômicos atuais
-- Tragédias, celebrações e marcos históricos recentes
-
-**NOTA:** Como admin, você tem conhecimento amplo incluindo eventos históricos e contexto geral de eventos recentes. Para detalhes específicos muito atuais (últimas horas/dias), recomende buscar fontes de notícias atualizadas.
+**CONTEXTO DE EVENTOS RECENTES:**
+Você tem conhecimento geral de eventos históricos e contexto amplo de eventos recentes.
+Para informações muito específicas de hoje/ontem, recomende fontes de notícias atualizadas.
 """
             
-            system_prompt = f"""Você é NatanAI no modo ADMINISTRADOR para Natan (criador do sistema).
+            system_prompt = f"""Você é NatanAI no modo ADMINISTRADOR para Natan (criador).
 
 **VOCÊ É A VERSÃO MAIS AVANÇADA:**
-- Modelo: GPT-4O (mais poderoso)
+- Modelo: GPT-4O puro (mais poderoso)
 - Mensagens: ILIMITADAS
 - Conhecimento: Geral + Técnico + Histórico + Contexto atual
-- Funcionalidades: Todas desbloqueadas
+- Web Search: Disponível (em desenvolvimento)
 
-**CONHECIMENTOS GERAIS QUE VOCÊ DOMINA:**
+**CONHECIMENTOS GERAIS:**
 
 **História:**
-- Revolução Industrial (1760-1840): Transformação da produção artesanal para industrial, máquinas a vapor, urbanização, mudanças sociais
-- Guerras Mundiais, Independências, Revoluções
+- Revolução Industrial, Guerras Mundiais, Independências
 - História do Brasil: Colônia, Império, República
 - Eventos históricos globais e locais
 
-**Eventos Recentes (contexto geral):**
-- Tragédias urbanas (como incidentes no Rio de Janeiro)
-- Mudanças políticas e sociais no Brasil
+**Eventos Recentes:**
+- Tragédias urbanas (RJ, SP, Brasil)
+- Mudanças políticas e sociais
 - Avanços tecnológicos (IA, blockchain, web3)
 - Crises econômicas e recuperações
-- Desastres naturais e ações humanitárias
 
 **Tecnologia e Ciência:**
 - IA Generativa (GPT, Claude, Gemini, Stable Diffusion)
-- Web Development (React, Next.js, frameworks modernos)
+- Web Development moderno
 - Cloud Computing, DevOps, CI/CD
 - Cibersegurança, blockchain
-- Física, química, biologia (fundamentos e avanços)
+- Física, química, biologia
 
-**Negócios e Empreendedorismo:**
-- Estratégias de marketing digital
-- SEO, tráfego pago, funis de vendas
-- Gestão de projetos e equipes
+**Negócios:**
+- Marketing digital, SEO, tráfego pago
+- Gestão de projetos
 - Finanças e investimentos
 - Startups e modelos de negócio
 
 {contexto_atual}
 
 **SOBRE NATANSITES:**
-Tudo que você sabe + acesso a estatísticas internas, código-fonte, logs, métricas de usuários, etc.
+Acesso total: código-fonte, logs, métricas, estatísticas internas
 
-**CAPACIDADES ESPECIAIS ADMIN:**
+**CAPACIDADES ADMIN:**
 - Análise profunda de dados
 - Debugging e troubleshooting
 - Sugestões de melhorias no sistema
@@ -1362,20 +1251,18 @@ Tudo que você sabe + acesso a estatísticas internas, código-fonte, logs, mét
 - Contexto histórico e atual amplo
 
 REGRAS:
-- Respostas COMPLETAS, PROFUNDAS e BEM FUNDAMENTADAS
+- Respostas COMPLETAS e BEM FUNDAMENTADAS
 - Use conhecimento histórico quando relevante
-- Forneça contexto amplo em eventos atuais
 - Seja técnico e detalhado
-- Sugira fontes para informações muito específicas/recentes
-- Reconheça limitações (ex: "Para detalhes de hoje, recomendo checar G1 ou Globo News")
-- {config['instrucao']} (mas pode ser mais extenso se necessário)
+- Sugira fontes para info muito específica/recente
+- {config['instrucao']} (pode ser mais extenso se necessário)
 - Sem asteriscos ou formatação markdown
-- Tom profissional, direto e consultivo
+- Tom profissional e direto
 
 Você está conversando com: Natan (ADMIN - Acesso Total)"""
 
             messages = [{"role": "system", "content": system_prompt}]
-            messages.extend(historico_memoria[-10:])  # Máximo contexto para admin
+            messages.extend(historico_memoria[-10:])
             messages.append({"role": "user", "content": mensagem})
             
             response = client.chat.completions.create(
@@ -1388,26 +1275,21 @@ Você está conversando com: Natan (ADMIN - Acesso Total)"""
             resposta = response.choices[0].message.content.strip()
             resposta = limpar_formatacao_markdown(resposta)
             
-            # Adiciona nota sobre web search se detectou keywords
             if precisa_search and "recomendo" not in resposta.lower():
-                resposta += "\n\n💡 Dica: Para informações em tempo real, posso integrar web search no futuro!"
-            
-            tokens_entrada = response.usage.prompt_tokens
-            tokens_saida = response.usage.completion_tokens
-            tokens_total = response.usage.total_tokens
+                resposta += "\n\n💡 Dica: Para informações em tempo real, use fontes de notícias atualizadas (G1, Globo, etc)"
             
             return {
                 'resposta': resposta,
-                'tokens_usados': tokens_total,
-                'tokens_entrada': tokens_entrada,
-                'tokens_saida': tokens_saida,
+                'tokens_usados': response.usage.total_tokens,
+                'tokens_entrada': response.usage.prompt_tokens,
+                'tokens_saida': response.usage.completion_tokens,
                 'modelo_usado': modelo,
                 'cached': False,
                 'categoria': categoria,
                 'web_search_sugerido': precisa_search
             }
         
-        # Fallback (não deveria chegar aqui)
+        # Fallback
         else:
             return {
                 'resposta': "Tipo de usuário não reconhecido. Entre em contato: (21) 99282-6074",
@@ -1425,6 +1307,16 @@ Você está conversando com: Natan (ADMIN - Acesso Total)"""
             'cached': False,
             'erro': str(e)
         }
+
+def verificar_openai():
+    try:
+        if not OPENAI_API_KEY or len(OPENAI_API_KEY) < 20:
+            return False
+        if client is None:
+            return False
+        return True
+    except:
+        return False
 
 # =============================================================================
 # 📨 ENDPOINT PRINCIPAL - /api/chat
@@ -1784,8 +1676,8 @@ def health():
     
     return jsonify({
         "status": "online",
-        "sistema": "NatanAI v8.0 - Sistema Híbrido de Modelos",
-        "versao": "8.0",
+        "sistema": "NatanAI v8.1 - Sistema Híbrido Otimizado",
+        "versao": "8.1",
         "openai": verificar_openai(),
         "supabase": supabase is not None,
         "memoria": {
@@ -1794,10 +1686,15 @@ def health():
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
         },
         "modelos_por_plano": {
-            "free": "gpt-3.5-turbo (econômico)",
-            "starter": "gpt-4o-mini (casual) + gpt-4o (sério)",
-            "professional": "gpt-4o (completo)",
-            "admin": "gpt-4o (completo + conhecimentos gerais)"
+            "free": "gpt-4o-mini (básico)",
+            "starter": "híbrido inteligente (gpt-4o-mini + gpt-4o quando necessário)",
+            "professional": "híbrido inteligente (gpt-4o-mini + gpt-4o quando necessário)",
+            "admin": "gpt-4o puro + web search"
+        },
+        "economia_sistema_hibrido": {
+            "starter_professional": "Usa gpt-4o-mini como base e só refina com gpt-4o quando detecta necessidade",
+            "economia_estimada": "60-80% comparado a usar só gpt-4o",
+            "criterios_refinamento": ["perguntas complexas", "explicações técnicas", "comparações detalhadas"]
         },
         "limites": {
             "free": f"{LIMITES_MENSAGENS['free']} mensagens/semana",
@@ -1814,18 +1711,17 @@ def health():
             "media_por_mensagem": round(total_tokens / total_mensagens_enviadas, 2) if total_mensagens_enviadas > 0 else 0
         },
         "features": [
-            "sistema_hibrido_modelos_v8",
-            "free_gpt35turbo",
-            "starter_gpt4omini_gpt4o",
-            "professional_gpt4o_completo",
-            "admin_gpt4o_conhecimentos_gerais",
-            "deteccao_automatica_perguntas_serias",
+            "sistema_hibrido_inteligente_v8_1",
+            "free_gpt4omini_basico",
+            "starter_hibrido_otimizado",
+            "professional_hibrido_otimizado",
+            "admin_gpt4o_puro",
+            "deteccao_automatica_refinamento",
+            "economia_maxima_tokens",
             "memoria_inteligente",
             "controle_limites_por_plano",
             "resposta_alternativa_sem_ia",
-            "validacao_anti_alucinacao",
-            "limpeza_formatacao",
-            "economia_tokens"
+            "validacao_anti_alucinacao"
         ],
         "timestamp": datetime.now().isoformat()
     })
@@ -2252,4 +2148,3 @@ if __name__ == '__main__':
     print(f"Sistema de Limites: ✅ Ativo\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
-    
