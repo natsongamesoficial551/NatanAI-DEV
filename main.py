@@ -212,7 +212,7 @@ def formatar_plataforma_info(dados):
         elif secao == 'promocoes' and isinstance(dados_secao, dict):
             promo_texto = dados_secao.get('texto', '')
             if promo_texto:
-                texto += f"PROMOÇÃO ATIVA:\n{promo_texto[:300]}\n\n"
+                texto += f"PROMOÇÃO ATIVA:\n{promo_texto[:5000]}\n\n"
         
         elif secao == 'contato' and isinstance(dados_secao, dict):
             whatsapp = dados_secao.get('whatsapp', '')
@@ -244,7 +244,7 @@ def formatar_repo_content(dados):
         # Prioriza arquivos importantes
         if any(arq in file_path for arq in arquivos_importantes):
             if content:
-                content_resumido = content[:400] + "..." if len(content) > 400 else content
+                content_resumido = content[:4000] + "..." if len(content) > 4000 else content
                 texto += f"Arquivo: {file_path}\n{content_resumido}\n\n"
     
     return texto
