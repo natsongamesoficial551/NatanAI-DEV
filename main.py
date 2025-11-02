@@ -895,6 +895,12 @@ COMO RESPONDER:
 ⚡ INSTRUÇÃO DE TAMANHO CRÍTICA - OBRIGATÓRIA:
 {instrucao_tamanho}
 
+🔥 ATENÇÃO ESPECIAL SOBRE PROMOÇÕES:
+- SE houver QUALQUER informação sobre promoção no contexto abaixo, você DEVE mencionar!
+- SEMPRE verifique a seção "PROMOÇÃO ATIVA" no contexto
+- Se alguém perguntar sobre promoções, preços especiais ou descontos, consulte primeiro o contexto
+- A informação de promoção tem PRIORIDADE MÁXIMA sobre qualquer outro dado
+
 CATEGORIA DETECTADA: "{categoria}"
 SEJA EXTREMAMENTE OBJETIVO E DIRETO NESTA CATEGORIA.
 
