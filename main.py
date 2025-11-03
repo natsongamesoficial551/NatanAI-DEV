@@ -1548,7 +1548,7 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
             }
 
         # ==================================================================
-        # 👑 ADMIN - GPT-4O PURO + CONHECIMENTO TOTAL DO SISTEMA
+        # 👑 ADMIN - GPT-4O PURO + CONHECIMENTO TOTAL DO SISTEMA (CORRIGIDO)
         # ==================================================================
         elif tipo == 'admin':
             modelo = 'gpt-4o'
@@ -1796,7 +1796,6 @@ REGRAS ADMIN:
 
 Você está conversando com: Natan (ADMIN - Criador da Plataforma)"""
 
-
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(historico_memoria[-10:])
             messages.append({"role": "user", "content": mensagem})
@@ -1811,8 +1810,8 @@ Você está conversando com: Natan (ADMIN - Criador da Plataforma)"""
             resposta = response.choices[0].message.content.strip()
             resposta = limpar_formatacao_markdown(resposta)
             
-            if precisa_search and "recomendo" not in resposta.lower():
-                resposta += "\n\n💡 Dica: Para informações em tempo real, use fontes de notícias atualizadas (G1, Globo, etc)"
+            # ✅ CORREÇÃO: Removida a verificação de precisa_search (variável indefinida)
+            # A detecção de necessidade de web search foi removida pois não está implementada
             
             return {
                 'resposta': resposta,
@@ -1821,8 +1820,7 @@ Você está conversando com: Natan (ADMIN - Criador da Plataforma)"""
                 'tokens_saida': response.usage.completion_tokens,
                 'modelo_usado': modelo,
                 'cached': False,
-                'categoria': categoria,
-                'web_search_sugerido': precisa_search
+                'categoria': categoria
             }
         
         # Fallback
@@ -1855,7 +1853,7 @@ def verificar_openai():
         return False
 
 # =============================================================================
-# 📨 ENDPOINT PRINCIPAL - /api/chat
+# 📨 ENDPOINT PRINCIPAL - /api/chat (CORRIGIDO)
 # =============================================================================
 
 @app.route('/api/chat', methods=['POST'])
@@ -1865,17 +1863,55 @@ def chat():
         mensagem = data.get('message', '').strip()
         token = request.headers.get('Authorization', '')
         
+        print("\n" + "="*80)
+        print("📨 NOVA REQUISIÇÃO /api/chat")
+        print("="*80)
+        print(f"📝 Mensagem: {mensagem[:50]}...")
+        print(f"🔐 Token presente: {bool(token)}")
+        print(f"📦 Body completo: {data}")
+        
         if not mensagem:
+            print("❌ Mensagem vazia")
             return jsonify({'error': 'Mensagem vazia'}), 400
         
-        # 🔐 Autenticação
-        user_info = verificar_token_supabase(token)
-        if not user_info:
-            return jsonify({'error': 'Não autenticado'}), 401
+        # 🆕 NOVA LÓGICA: Aceita user_data do body OU busca via token
+        user_data_from_body = data.get('user_data')
         
-        user_data = obter_dados_usuario_completos(user_info.id)
-        if not user_data:
-            return jsonify({'error': 'Usuário não encontrado'}), 404
+        if user_data_from_body:
+            # Frontend enviou user_data completo no body
+            print("✅ Usando user_data do body")
+            user_info = type('obj', (object,), {
+                'id': user_data_from_body.get('user_id'),
+                'email': user_data_from_body.get('email'),
+                'user_metadata': {'name': user_data_from_body.get('name', 'Cliente')}
+            })()
+            
+            user_data = {
+                'user_id': user_data_from_body.get('user_id'),
+                'email': user_data_from_body.get('email'),
+                'plan': user_data_from_body.get('plan', 'starter'),
+                'plan_type': user_data_from_body.get('plan_type', 'paid'),
+                'user_name': user_data_from_body.get('name'),
+                'name': user_data_from_body.get('name')
+            }
+            
+        else:
+            # Fallback: buscar via token (comportamento antigo)
+            print("🔐 Buscando via token Supabase")
+            user_info = verificar_token_supabase(token)
+            if not user_info:
+                print("❌ Token inválido")
+                return jsonify({'error': 'Não autenticado'}), 401
+            
+            user_data = obter_dados_usuario_completos(user_info.id)
+            if not user_data:
+                print("❌ Usuário não encontrado no banco")
+                return jsonify({'error': 'Usuário não encontrado'}), 404
+        
+        print(f"✅ User ID: {user_data.get('user_id', 'N/A')[:8]}...")
+        print(f"✅ Email: {user_data.get('email', 'N/A')}")
+        print(f"✅ Plan: {user_data.get('plan', 'N/A')}")
+        print(f"✅ Plan Type: {user_data.get('plan_type', 'N/A')}")
         
         # 👤 Dados do usuário
         tipo_usuario = determinar_tipo_usuario(user_data, user_info)
@@ -1883,11 +1919,15 @@ def chat():
         tipo = tipo_usuario['tipo']
         nome = tipo_usuario['nome_real']
         
+        print(f"👤 Tipo: {tipo} | Nome: {nome}")
+        
         # 📊 Verifica limite de mensagens
         pode_enviar, msgs_usadas, limite, msgs_restantes = verificar_limite_mensagens(user_id, tipo)
         
+        print(f"📊 Mensagens: {msgs_usadas}/{limite} (Restantes: {msgs_restantes})")
+        
         if not pode_enviar:
-            # Usa resposta alternativa quando limite acaba
+            print("🚫 Limite de mensagens atingido")
             resposta_alt = gerar_resposta_alternativa_inteligente(mensagem, tipo_usuario)
             
             return jsonify({
@@ -1909,18 +1949,25 @@ def chat():
         adicionar_mensagem_memoria(user_id, 'user', mensagem)
         historico_memoria = obter_contexto_memoria(user_id)
         
-        # 🤖 Processa com OpenAI (sistema híbrido)
+        print(f"🧠 Histórico: {len(historico_memoria)} mensagens em contexto")
+        
+        # 🤖 Processa com OpenAI
+        print("🤖 Processando com OpenAI...")
         resultado = processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria)
         
         resposta = resultado['resposta']
         tokens_usados = resultado['tokens_usados']
         modelo_usado = resultado['modelo_usado']
         
+        print(f"✅ Resposta gerada: {len(resposta)} caracteres")
+        print(f"📊 Tokens usados: {tokens_usados}")
+        print(f"🤖 Modelo: {modelo_usado}")
+        
         # 🛡️ Validação anti-alucinação
         valido, problemas = validar_resposta(resposta, tipo)
         if not valido:
-            print(f"⚠️ Resposta inválida detectada: {problemas}")
-            resposta = f"Desculpe {nome}, detectei informações imprecisas na minha resposta. Por favor, entre em contato diretamente: WhatsApp (21) 99282-6074"
+            print(f"⚠️ Resposta inválida: {problemas}")
+            resposta = f"Desculpe {nome}, detectei informações imprecisas na minha resposta. Por favor, entre em contato: WhatsApp (21) 99282-6074"
         
         # 💾 Salva na memória
         adicionar_mensagem_memoria(user_id, 'assistant', resposta)
@@ -1935,24 +1982,11 @@ def chat():
             modelo_usado
         )
         
-        # 💾 Salva no histórico global (opcional)
-        with historico_lock:
-            HISTORICO_CONVERSAS.append({
-                'user_id': user_id[:8] + '...',
-                'tipo': tipo,
-                'mensagem': mensagem[:50] + '...',
-                'resposta': resposta[:50] + '...',
-                'modelo': modelo_usado,
-                'tokens': tokens_usados,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-            # Limita histórico global a 1000 entradas
-            if len(HISTORICO_CONVERSAS) > 1000:
-                HISTORICO_CONVERSAS.pop(0)
-        
-        # 📊 Atualiza contadores para próxima verificação
+        # 📊 Atualiza para próxima verificação
         pode_enviar_prox, msgs_usadas_prox, limite_prox, msgs_restantes_prox = verificar_limite_mensagens(user_id, tipo)
+        
+        print("✅ Resposta enviada com sucesso")
+        print("="*80 + "\n")
         
         # 📤 Resposta final
         return jsonify({
@@ -1963,8 +1997,8 @@ def chat():
             'modelo_usado': modelo_usado,
             'tokens_usados': tokens_usados,
             'categoria': resultado.get('categoria', 'geral'),
-            'tipo_processamento': resultado.get('tipo_processamento', 'N/A'),  # Para Starter
-            'web_search_sugerido': resultado.get('web_search_sugerido', False),  # Para Admin
+            'tipo_processamento': resultado.get('sistema_hibrido', 'N/A'),
+            'web_search_sugerido': resultado.get('web_search_sugerido', False),
             'mensagens_usadas': msgs_usadas_prox,
             'limite_total': limite_prox if limite_prox != float('inf') else 'ilimitado',
             'mensagens_restantes': msgs_restantes_prox if msgs_restantes_prox != float('inf') else 'ilimitado',
@@ -1973,12 +2007,21 @@ def chat():
         })
     
     except Exception as e:
-        print(f"❌ Erro no endpoint /api/chat: {e}")
+        print("="*80)
+        print("❌ ERRO NO ENDPOINT /api/chat")
+        print("="*80)
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensagem: {str(e)}")
+        print(f"Stack trace:")
+        import traceback
+        traceback.print_exc()
+        print("="*80 + "\n")
+        
         return jsonify({
             'error': 'Erro interno do servidor',
             'details': str(e)
         }), 500
-
+    
 # =============================================================================
 # 📊 ENDPOINTS DE ADMINISTRAÇÃO
 # =============================================================================
