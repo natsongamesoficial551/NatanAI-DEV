@@ -6,7 +6,7 @@ import hashlib
 import random
 import re
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 from openai import OpenAI
@@ -45,6 +45,205 @@ LIMITES_MENSAGENS = {
     'professional': 5000, # 💎 5.000 mensagens/mês
     'admin': float('inf') # 👑 Ilimitado
 }
+
+# =============================================================================
+# 🌐 CONTROLE DE VISITANTES ANÔNIMOS
+# =============================================================================
+
+def obter_contador_visitante(browser_id):
+    """Retorna o contador de mensagens de um visitante anônimo"""
+    with visitantes_lock:
+        if browser_id not in CONTADOR_VISITANTES:
+            CONTADOR_VISITANTES[browser_id] = {
+                'total': 0,
+                'primeiro_uso': datetime.now().isoformat(),
+                'expira_em': (datetime.now() + timedelta(hours=VISITANTE_ANONIMO_CONFIG['duracao_limite_horas'])).isoformat(),
+                'tipo': 'visitante_anonimo'
+            }
+        return CONTADOR_VISITANTES[browser_id]
+
+def verificar_limite_visitante(browser_id):
+    """
+    Verifica se visitante pode enviar mensagem.
+    Retorna: (pode_enviar: bool, mensagens_usadas: int, limite: int, tempo_restante: str)
+    """
+    contador = obter_contador_visitante(browser_id)
+    limite = VISITANTE_ANONIMO_CONFIG['limite_mensagens']
+    
+    # Verifica se já expirou (24h)
+    expira_em = datetime.fromisoformat(contador['expira_em'])
+    agora = datetime.now()
+    
+    if agora > expira_em:
+        # Resetar contador após 24h
+        with visitantes_lock:
+            CONTADOR_VISITANTES[browser_id] = {
+                'total': 0,
+                'primeiro_uso': agora.isoformat(),
+                'expira_em': (agora + timedelta(hours=VISITANTE_ANONIMO_CONFIG['duracao_limite_horas'])).isoformat(),
+                'tipo': 'visitante_anonimo'
+            }
+        contador = CONTADOR_VISITANTES[browser_id]
+    
+    mensagens_usadas = contador['total']
+    pode_enviar = mensagens_usadas < limite
+    
+    # Calcula tempo restante
+    tempo_restante_delta = expira_em - agora
+    horas_restantes = int(tempo_restante_delta.total_seconds() // 3600)
+    minutos_restantes = int((tempo_restante_delta.total_seconds() % 3600) // 60)
+    tempo_restante = f"{horas_restantes}h {minutos_restantes}min"
+    
+    return pode_enviar, mensagens_usadas, limite, tempo_restante
+
+def incrementar_contador_visitante(browser_id):
+    """Incrementa o contador de mensagens de um visitante"""
+    with visitantes_lock:
+        if browser_id not in CONTADOR_VISITANTES:
+            obter_contador_visitante(browser_id)
+        
+        CONTADOR_VISITANTES[browser_id]['total'] += 1
+        return CONTADOR_VISITANTES[browser_id]['total']
+
+def gerar_mensagem_limite_visitante(mensagens_usadas, limite, tempo_restante):
+    """Gera mensagem quando visitante atinge limite de 50 mensagens"""
+    return f"""Você utilizou suas {limite} mensagens gratuitas nas últimas 24 horas! 🎁
+
+Suas mensagens serão renovadas em aproximadamente {tempo_restante}.
+
+Enquanto isso, que tal conhecer nossos planos?
+
+🎁 FREE - R$0,00 (permanente)
+- 100 mensagens/semana comigo
+- Acesso completo ao dashboard
+- Sites para teste/portfólio
+
+🌱 STARTER - R$320 (setup) + R$39,99/mês
+- 1.250 mensagens/mês
+- Site profissional até 5 páginas
+- Hospedagem incluída
+
+💎 PROFESSIONAL - R$530 (setup) + R$79,99/mês
+- 5.000 mensagens/mês
+- Design 100% personalizado
+- Páginas ilimitadas
+
+Cadastre-se ou entre em contato:
+📱 WhatsApp: (21) 99282-6074
+🌐 Site: https://natansites.com.br
+
+Vibrações Positivas! ✨"""
+
+def processar_mensagem_visitante_anonimo(mensagem):
+    """
+    Processa mensagem de visitante anônimo com GPT-4O-MINI.
+    Respostas curtas e focadas em apresentar a NatanSites.
+    """
+    if not verificar_openai():
+        return {
+            'resposta': "⚠️ Sistema de IA temporariamente indisponível. Tente novamente em alguns instantes.",
+            'tokens_usados': 0,
+            'modelo_usado': 'N/A',
+            'cached': False
+        }
+        
+    
+    try:
+        modelo = VISITANTE_ANONIMO_CONFIG['modelo']
+        max_tokens = VISITANTE_ANONIMO_CONFIG['max_tokens_resposta']
+        
+        # Detecta categoria para otimizar tokens
+        categoria, config = detectar_categoria_mensagem(mensagem)
+        
+        system_prompt = f"""Você é NatanAI, assistente virtual da NatanSites (natansites.com.br).
+
+**VOCÊ ESTÁ CONVERSANDO COM UM VISITANTE ANÔNIMO:**
+Esta pessoa está testando gratuitamente sem cadastro! Tem apenas 50 mensagens nas próximas 24h.
+
+**SEU OBJETIVO:**
+Responder de forma BREVE, CLARA e sempre INCENTIVANDO o cadastro nos planos.
+
+**INFORMAÇÕES DOS PLANOS:**
+
+🎁 **FREE (R$0,00 - PERMANENTE)**
+- 100 mensagens/semana comigo
+- Acesso completo ao dashboard
+- Sites para teste/portfólio pessoal
+- SEM uso comercial
+- Gratuito para sempre!
+
+🌱 **STARTER (R$320 + R$39,99/mês)**
+- 1.250 mensagens/mês comigo
+- Site até 5 páginas
+- Hospedagem incluída 1 ano
+- Uso comercial PERMITIDO
+- SEO básico otimizado
+- Conversas salvas
+
+💎 **PROFESSIONAL (R$530 + R$79,99/mês)**
+- 5.000 mensagens/mês comigo
+- Páginas ILIMITADAS
+- Design 100% personalizado
+- Hospedagem + Domínio inclusos
+- SEO avançado
+- Blog/E-commerce opcionais
+- Suporte prioritário
+
+**CONTATO:**
+- WhatsApp: (21) 99282-6074
+- Email: borgesnatan09@gmail.com
+- Site: https://natansites.com.br
+
+**PORTFÓLIO:**
+- espacofamiliares.com.br
+- natansites.com.br
+- mathworkftv.netlify.app
+- tafsemtabu.com.br
+
+**REGRAS IMPORTANTES:**
+- Respostas CURTAS (máximo 4-5 frases)
+- {config['instrucao']}
+- Sem asteriscos ou formatação markdown
+- Sempre mencione que tem planos gratuitos E pagos
+- Incentive cadastro quando apropriado
+- Tom amigável e prestativo
+
+Você está conversando com: Visitante Anônimo (Teste Gratuito - 50 mensagens/24h)"""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": mensagem}
+        ]
+        
+        response = client.chat.completions.create(
+            model=modelo,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.7
+        )
+        
+        resposta = response.choices[0].message.content.strip()
+        resposta = limpar_formatacao_markdown(resposta)
+        
+        return {
+            'resposta': resposta,
+            'tokens_usados': response.usage.total_tokens,
+            'tokens_entrada': response.usage.prompt_tokens,
+            'tokens_saida': response.usage.completion_tokens,
+            'modelo_usado': f'{modelo} (visitante)',
+            'cached': False,
+            'categoria': categoria
+        }
+        
+    except Exception as e:
+        print(f"❌ Erro ao processar visitante: {e}")
+        return {
+            'resposta': "⚠️ Erro ao processar sua mensagem. Tente novamente ou contate: (21) 99282-6074",
+            'tokens_usados': 0,
+            'modelo_usado': 'erro',
+            'cached': False,
+            'erro': str(e)
+        }
 
 # ============================================
 # 🎯 SISTEMA DE OTIMIZAÇÃO DE TOKENS v8.0
@@ -2253,6 +2452,10 @@ def health():
     with contador_lock:
         total_mensagens_enviadas = sum(c['total'] for c in CONTADOR_MENSAGENS.values())
     
+    with visitantes_lock:
+        total_visitantes = len(CONTADOR_VISITANTES)
+        total_msgs_visitantes = sum(v['total'] for v in CONTADOR_VISITANTES.values())
+
     return jsonify({
         "status": "online",
         "sistema": "NatanAI v8.1 - Sistema Híbrido Otimizado",
@@ -2263,6 +2466,12 @@ def health():
             "usuarios_ativos": usuarios_ativos,
             "total_mensagens_memoria": total_mensagens,
             "max_por_usuario": MAX_MENSAGENS_MEMORIA
+        },
+        "visitantes_anonimos": {
+            "total_visitantes": total_visitantes,
+            "total_mensagens": total_msgs_visitantes,
+            "limite_por_visitante": VISITANTE_ANONIMO_CONFIG['limite_mensagens'],
+            "duracao_limite": f"{VISITANTE_ANONIMO_CONFIG['duracao_limite_horas']}h"
         },
         "modelos_por_plano": {
             "free": "gpt-4o-mini (básico)",
