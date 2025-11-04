@@ -46,6 +46,20 @@ LIMITES_MENSAGENS = {
     'admin': float('inf') # 👑 Ilimitado
 }
 
+# ============================================
+# 🌐 SISTEMA DE VISITANTES ANÔNIMOS (50 MENSAGENS)
+# ============================================
+VISITANTE_ANONIMO_CONFIG = {
+    'limite_mensagens': 50,
+    'duracao_limite_horas': 24,
+    'modelo': 'gpt-4o-mini',
+    'max_tokens_resposta': 150
+}
+
+# Armazena contadores de visitantes anônimos (por browser_id)
+CONTADOR_VISITANTES = {}
+visitantes_lock = threading.Lock()
+
 # =============================================================================
 # 🌐 CONTROLE DE VISITANTES ANÔNIMOS
 # =============================================================================
@@ -2936,3 +2950,4 @@ if __name__ == '__main__':
     print(f"Sistema de Limites: ✅ Ativo\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
