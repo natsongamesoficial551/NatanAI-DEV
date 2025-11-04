@@ -2075,17 +2075,91 @@ def chat():
         data = request.get_json()
         mensagem = data.get('message', '').strip()
         token = request.headers.get('Authorization', '')
+        browser_id = data.get('browser_id')  # 🆕 ID único do navegador
         
         print("\n" + "="*80)
         print("📨 NOVA REQUISIÇÃO /api/chat")
         print("="*80)
         print(f"📝 Mensagem: {mensagem[:50]}...")
         print(f"🔐 Token presente: {bool(token)}")
+        print(f"🌐 Browser ID presente: {bool(browser_id)}")
         print(f"📦 Body completo: {data}")
         
         if not mensagem:
             print("❌ Mensagem vazia")
             return jsonify({'error': 'Mensagem vazia'}), 400
+        
+        # =================================================================
+        # 🌐 VISITANTE ANÔNIMO (SEM TOKEN, COM BROWSER_ID)
+        # =================================================================
+        if browser_id and not token:
+            print("🌐 Processando como VISITANTE ANÔNIMO")
+            
+            # Verifica limite de 50 mensagens/24h
+            pode_enviar, msgs_usadas, limite, tempo_restante = verificar_limite_visitante(browser_id)
+            
+            print(f"📊 Visitante: {msgs_usadas}/{limite} mensagens (Renova em: {tempo_restante})")
+            
+            if not pode_enviar:
+                print("🚫 Visitante atingiu limite de 50 mensagens")
+                mensagem_limite = gerar_mensagem_limite_visitante(msgs_usadas, limite, tempo_restante)
+                
+                return jsonify({
+                    'response': mensagem_limite,
+                    'user_name': 'Visitante',
+                    'user_type': 'Visitante Anônimo',
+                    'plan': 'Teste Gratuito (50 msgs/24h)',
+                    'modelo_usado': 'Sistema de Limite',
+                    'limite_atingido': True,
+                    'mensagens_usadas': msgs_usadas,
+                    'limite_total': limite,
+                    'mensagens_restantes': 0,
+                    'tempo_para_renovar': tempo_restante,
+                    'tokens_usados': 0,
+                    'categoria': 'limite_visitante'
+                })
+            
+            # Processa mensagem do visitante
+            print("🤖 Processando com GPT-4O-MINI (visitante)...")
+            resultado = processar_mensagem_visitante_anonimo(mensagem)
+            
+            resposta = resultado['resposta']
+            tokens_usados = resultado['tokens_usados']
+            modelo_usado = resultado['modelo_usado']
+            
+            print(f"✅ Resposta gerada: {len(resposta)} caracteres")
+            print(f"📊 Tokens usados: {tokens_usados}")
+            print(f"🤖 Modelo: {modelo_usado}")
+            
+            # Incrementa contador do visitante
+            incrementar_contador_visitante(browser_id)
+            
+            # Atualiza para próxima verificação
+            pode_enviar_prox, msgs_usadas_prox, limite_prox, tempo_restante_prox = verificar_limite_visitante(browser_id)
+            
+            print("✅ Resposta enviada com sucesso (visitante)")
+            print("="*80 + "\n")
+            
+            return jsonify({
+                'response': resposta,
+                'user_name': 'Visitante',
+                'user_type': 'Visitante Anônimo',
+                'plan': 'Teste Gratuito (50 msgs/24h)',
+                'modelo_usado': modelo_usado,
+                'tokens_usados': tokens_usados,
+                'categoria': resultado.get('categoria', 'geral'),
+                'mensagens_usadas': msgs_usadas_prox,
+                'limite_total': limite_prox,
+                'mensagens_restantes': limite_prox - msgs_usadas_prox,
+                'tempo_para_renovar': tempo_restante_prox,
+                'limite_atingido': False,
+                'timestamp': datetime.now().isoformat(),
+                'tipo_usuario': 'visitante_anonimo'
+            })
+        
+        # =================================================================
+        # 👤 USUÁRIOS AUTENTICADOS (COMPORTAMENTO NORMAL)
+        # =================================================================
         
         # 🆕 NOVA LÓGICA: Aceita user_data do body OU busca via token
         user_data_from_body = data.get('user_data')
@@ -2111,10 +2185,16 @@ def chat():
         else:
             # Fallback: buscar via token (comportamento antigo)
             print("🔐 Buscando via token Supabase")
+            
+            # 🚨 CORREÇÃO: Se NÃO tem token e NÃO tem browser_id, retorna erro
+            if not token:
+                print("❌ Sem token e sem browser_id")
+                return jsonify({'error': 'Não autenticado. Envie browser_id ou token.'}), 401
+            
             user_info = verificar_token_supabase(token)
             if not user_info:
                 print("❌ Token inválido")
-                return jsonify({'error': 'Não autenticado'}), 401
+                return jsonify({'error': 'Token inválido'}), 401
             
             user_data = obter_dados_usuario_completos(user_info.id)
             if not user_data:
@@ -2950,4 +3030,3 @@ if __name__ == '__main__':
     print(f"Sistema de Limites: ✅ Ativo\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
-
