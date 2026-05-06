@@ -6,6 +6,7 @@ import hashlib
 import random
 import re
 import threading
+import base64
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
@@ -23,8 +24,25 @@ CORS(app)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 ADMIN_EMAIL = "natan@natandev.com"
+ADMIN_EMAILS = {email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "natan@natandev.com,borgesnatan09@gmail.com,nandaxgn@gmail.com").split(',') if email.strip()}
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 RENDER_URL = os.getenv("RENDER_URL", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+NATANSITES_REPO_OWNER = os.getenv("NATANSITES_REPO_OWNER", "natsongamesoficial551")
+NATANSITES_REPO_NAME = os.getenv("NATANSITES_REPO_NAME", "natansitesnew")
+NATANSITES_REPO_BRANCH = os.getenv("NATANSITES_REPO_BRANCH", "main")
+REPO_CONTEXT_TTL_SECONDS = int(os.getenv("REPO_CONTEXT_TTL_SECONDS", "600"))
+REPO_CONTEXT_MAX_FILES = int(os.getenv("REPO_CONTEXT_MAX_FILES", "120"))
+REPO_CONTEXT_MAX_CHARS = int(os.getenv("REPO_CONTEXT_MAX_CHARS", "52000"))
+
+# Contexto em cache do repositorio principal. Nunca armazena arquivos sensiveis.
+REPO_CONTEXT_CACHE = {
+    'updated_at': None,
+    'public': '',
+    'admin': '',
+    'sha': ''
+}
+repo_context_lock = threading.Lock()
 
 # ============================================
 # 🆕 SISTEMA DE MODELOS POR PLANO v8.1 (OTIMIZADO)
@@ -56,9 +74,161 @@ VISITANTE_ANONIMO_CONFIG = {
     'max_tokens_resposta': 150
 }
 
+EXTENSOES_REPO_PERMITIDAS = {
+    '.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.sql', '.py', '.yml', '.yaml', '.toml'
+}
+
+CAMINHOS_REPO_BLOQUEADOS = (
+    '.env', '.git/', 'node_modules/', 'dist/', 'build/', '.netlify/', '.vercel/',
+    '__pycache__/', '.next/', 'coverage/', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'
+)
+
+PADROES_SEGREDOS = [
+    re.compile(r'(?i)(api[_-]?key|secret|token|password|passwd|authorization|bearer|service[_-]?role|private[_-]?key)\s*[:=]\s*["\']?([^"\'\s,}]+)'),
+    re.compile(r'sk-[A-Za-z0-9_\-]{16,}'),
+    re.compile(r'sbp_[A-Za-z0-9_\-]{16,}'),
+    re.compile(r'eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}')
+]
+
+PALAVRAS_PEDIDO_SEGREDO = [
+    'api key', 'apikey', 'chave api', 'chave da api', 'secret key', 'service role',
+    'access token', 'refresh token', 'bearer token', 'senha do banco', 'senha da api',
+    '.env', 'env var', 'variaveis de ambiente', 'variáveis de ambiente', 'openai key',
+    'supabase key', 'stripe secret', 'github token'
+]
+
 # Armazena contadores de visitantes anônimos (por browser_id)
 CONTADOR_VISITANTES = {}
 visitantes_lock = threading.Lock()
+
+def normalizar_plano(plano):
+    plano_normalizado = str(plano or 'free').lower().strip()
+    if plano_normalizado in ('admin', 'professional', 'starter', 'free'):
+        return plano_normalizado
+    return 'free'
+
+def limite_por_plano(plano):
+    plano_normalizado = normalizar_plano(plano)
+    return LIMITES_MENSAGENS.get(plano_normalizado, LIMITES_MENSAGENS['free'])
+
+def mensagem_pede_segredos(mensagem):
+    texto = str(mensagem or '').lower()
+    return any(palavra in texto for palavra in PALAVRAS_PEDIDO_SEGREDO)
+
+def resposta_bloqueio_segredos():
+    return "Não posso exibir, recuperar ou compartilhar chaves de API, tokens, senhas, variáveis .env ou credenciais. Posso explicar onde configurar essas chaves com segurança e como proteger o projeto sem revelar valores confidenciais."
+
+def eh_admin(user_info):
+    email = getattr(user_info, 'email', '') if user_info else ''
+    return str(email or '').lower().strip() in ADMIN_EMAILS
+
+def redigir_segredos(texto):
+    seguro = str(texto or '')
+    for padrao in PADROES_SEGREDOS:
+        seguro = padrao.sub(lambda m: m.group(0).split(str(m.group(2)))[0] + '[REDACTED]' if len(m.groups()) >= 2 else '[REDACTED]', seguro)
+    return seguro
+
+def caminho_repo_permitido(path):
+    caminho = str(path or '').replace('\\', '/').lower()
+    if not caminho or any(bloqueado in caminho for bloqueado in CAMINHOS_REPO_BLOQUEADOS):
+        return False
+    _, ext = os.path.splitext(caminho)
+    return ext in EXTENSOES_REPO_PERMITIDAS
+
+def buscar_json_github(url):
+    headers = {'Accept': 'application/vnd.github+json'}
+    if GITHUB_TOKEN:
+        headers['Authorization'] = f'Bearer {GITHUB_TOKEN}'
+    response = requests.get(url, headers=headers, timeout=20)
+    if response.status_code >= 400:
+        raise RuntimeError(f'GitHub API retornou {response.status_code}')
+    return response.json()
+
+def buscar_conteudo_arquivo_repo(path):
+    url = f"https://api.github.com/repos/{NATANSITES_REPO_OWNER}/{NATANSITES_REPO_NAME}/contents/{path}?ref={NATANSITES_REPO_BRANCH}"
+    data = buscar_json_github(url)
+    if data.get('encoding') != 'base64' or not data.get('content'):
+        return ''
+    raw = base64.b64decode(data['content']).decode('utf-8', errors='ignore')
+    return redigir_segredos(raw)
+
+def atualizar_contexto_repositorio(force=False, incluir_codigo=False):
+    """Busca o repo natansitesnew com filtros de segurança e cache curto."""
+    with repo_context_lock:
+        agora = datetime.now()
+        atualizado_em = REPO_CONTEXT_CACHE.get('updated_at')
+        tem_contexto_admin = bool(REPO_CONTEXT_CACHE.get('admin')) and REPO_CONTEXT_CACHE.get('admin') != REPO_CONTEXT_CACHE.get('public')
+        if not force and atualizado_em and (agora - atualizado_em).total_seconds() < REPO_CONTEXT_TTL_SECONDS and (not incluir_codigo or tem_contexto_admin):
+            return REPO_CONTEXT_CACHE
+
+        try:
+            tree_url = f"https://api.github.com/repos/{NATANSITES_REPO_OWNER}/{NATANSITES_REPO_NAME}/git/trees/{NATANSITES_REPO_BRANCH}?recursive=1"
+            tree_data = buscar_json_github(tree_url)
+            arquivos = [item for item in tree_data.get('tree', []) if item.get('type') == 'blob']
+            arquivos_permitidos = [item for item in arquivos if caminho_repo_permitido(item.get('path'))]
+            arquivos_permitidos = sorted(arquivos_permitidos, key=lambda item: item.get('path', ''))
+
+            file_tree = '\n'.join(f"- {item.get('path')}" for item in arquivos_permitidos[:300])
+            public_context = f"""Contexto publico atualizado do repositorio principal natansitesnew:
+Repositorio: https://github.com/{NATANSITES_REPO_OWNER}/{NATANSITES_REPO_NAME}
+Branch: {NATANSITES_REPO_BRANCH}
+Arquivos seguros mapeados: {len(arquivos_permitidos)}
+Estrutura relevante:
+{file_tree}
+
+Use este contexto apenas para explicar funcionalidades publicas da plataforma. Nao revele codigo-fonte, chaves, tokens, variaveis de ambiente ou detalhes internos sensiveis para clientes."""
+
+            partes_admin = [public_context]
+            if incluir_codigo:
+                partes_admin = [
+                    f"Contexto tecnico seguro do repositorio principal natansitesnew ({NATANSITES_REPO_BRANCH}).",
+                    f"Arquivos seguros mapeados: {len(arquivos_permitidos)}.",
+                    "Arquivos bloqueados: .env, tokens, chaves, builds, node_modules e locks.",
+                    "Arvore de arquivos:",
+                    file_tree,
+                    "\nTrechos sanitizados dos arquivos principais:"
+                ]
+
+                chars = sum(len(p) for p in partes_admin)
+                arquivos_lidos = 0
+                for item in arquivos_permitidos:
+                    if arquivos_lidos >= REPO_CONTEXT_MAX_FILES or chars >= REPO_CONTEXT_MAX_CHARS:
+                        break
+                    path = item.get('path')
+                    if not path:
+                        continue
+                    try:
+                        conteudo = buscar_conteudo_arquivo_repo(path)
+                        if not conteudo.strip():
+                            continue
+                        limite_arquivo = 2800 if path.endswith(('.ts', '.tsx', '.js', '.jsx', '.py')) else 1800
+                        trecho = conteudo[:limite_arquivo]
+                        bloco = f"\n--- {path} ---\n{trecho}"
+                        if chars + len(bloco) > REPO_CONTEXT_MAX_CHARS:
+                            break
+                        partes_admin.append(bloco)
+                        chars += len(bloco)
+                        arquivos_lidos += 1
+                    except Exception as file_err:
+                        partes_admin.append(f"\n--- {path} ---\n[nao foi possivel ler: {file_err}]")
+
+            REPO_CONTEXT_CACHE.update({
+                'updated_at': agora,
+                'public': public_context[:16000],
+                'admin': '\n'.join(partes_admin)[:REPO_CONTEXT_MAX_CHARS],
+                'sha': str(tree_data.get('sha') or '')
+            })
+        except Exception as repo_err:
+            print(f"⚠️ Falha ao atualizar contexto do GitHub: {repo_err}")
+            if not REPO_CONTEXT_CACHE.get('public'):
+                REPO_CONTEXT_CACHE.update({
+                    'updated_at': agora,
+                    'public': 'Contexto do repositorio principal indisponivel temporariamente.',
+                    'admin': 'Contexto do repositorio principal indisponivel temporariamente.',
+                    'sha': ''
+                })
+
+        return REPO_CONTEXT_CACHE
 
 # =============================================================================
 # 🌐 CONTROLE DE VISITANTES ANÔNIMOS
@@ -132,12 +302,12 @@ Enquanto isso, que tal conhecer nossos planos?
 - Acesso completo ao dashboard
 - Sites para teste/portfólio
 
-🌱 STARTER - R$320 (setup) + R$39,99/mês
+🌱 STARTER - R$39,99/mês
 - 1.250 mensagens/mês
 - Site profissional até 5 páginas
 - Hospedagem incluída
 
-💎 PROFESSIONAL - R$530 (setup) + R$79,99/mês
+💎 PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês
 - Design 100% personalizado
 - Páginas ilimitadas
@@ -186,7 +356,7 @@ Responder de forma BREVE, CLARA e sempre INCENTIVANDO o cadastro nos planos.
 - SEM uso comercial
 - Gratuito para sempre!
 
-🌱 **STARTER (R$320 + R$39,99/mês)**
+🌱 **STARTER (R$39,99/mês)**
 - 1.250 mensagens/mês comigo
 - Site até 5 páginas
 - Hospedagem incluída 1 ano
@@ -194,7 +364,7 @@ Responder de forma BREVE, CLARA e sempre INCENTIVANDO o cadastro nos planos.
 - SEO básico otimizado
 - Conversas salvas
 
-💎 **PROFESSIONAL (R$530 + R$79,99/mês)**
+💎 **PROFESSIONAL (R$79,99/mês)**
 - 5.000 mensagens/mês comigo
 - Páginas ILIMITADAS
 - Design 100% personalizado
@@ -391,7 +561,7 @@ def obter_contador_mensagens(user_id):
             CONTADOR_MENSAGENS[user_id] = {
                 'total': 0,
                 'resetado_em': datetime.now().isoformat(),
-                'tipo_plano': 'starter'
+                'tipo_plano': 'free'
             }
         return CONTADOR_MENSAGENS[user_id]
 
@@ -416,7 +586,7 @@ def verificar_limite_mensagens(user_id, tipo_plano):
     Retorna: (pode_enviar: bool, mensagens_usadas: int, limite: int, mensagens_restantes: int)
     """
     tipo = tipo_plano.lower().strip()
-    limite = LIMITES_MENSAGENS.get(tipo, LIMITES_MENSAGENS['starter'])
+    limite = LIMITES_MENSAGENS.get(tipo, LIMITES_MENSAGENS['free'])
     
     # Admin tem ilimitado
     if tipo == 'admin':
@@ -449,12 +619,12 @@ def gerar_mensagem_limite_atingido(tipo_plano, mensagens_usadas, limite):
 
 Para continuar conversando comigo, contrate um dos planos:
 
-STARTER - R$320 (setup) + R$39,99/mês
+STARTER - R$39,99/mês
 - 1.250 mensagens/mês comigo
 - Site profissional até 5 páginas
 - Hospedagem inclusa
 
-PROFESSIONAL - R$530 (setup) + R$79,99/mês
+PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês comigo
 - Site 100% personalizado
 - Recursos avançados
@@ -559,13 +729,13 @@ FREE - R$0,00 (teste 1 ano)
 - 100 mensagens/semana comigo
 - Sites básicos sem uso comercial
 
-STARTER - R$320 (setup) + R$39,99/mês
+STARTER - R$39,99/mês
 - 1.250 mensagens/mês comigo
 - Site até 5 páginas
 - Hospedagem inclusa
 - Uso comercial
 
-PROFESSIONAL - R$530 (setup) + R$79,99/mês
+PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês comigo
 - Páginas ilimitadas
 - Design personalizado
@@ -639,7 +809,7 @@ Você tem suporte prioritário como cliente {tipo.upper()}."""
 1. Escolha STARTER ou PROFESSIONAL
 2. Acesse a página do plano escolhido
 3. Preencha: Nome, Data Nasc, CPF
-4. Pague via PIX (R$320 Starter ou R$530 Pro)
+4. Assine pela página Assinaturas no dashboard
 5. Aguarde criação da conta (10min a 2h)
 
 WhatsApp para dúvidas: (21) 99282-6074"""
@@ -683,8 +853,8 @@ WhatsApp: (21) 99282-6074"""
         return f"""Formas de Pagamento:
 
 Setup (inicial): PIX
-- Starter: R$320,00
-- Professional: R$530,00
+- Starter: R$39,99/mês
+- Professional: R$79,99/mês
 
 Mensalidade: PIX mensal
 - Starter: R$39,99/mês
@@ -697,13 +867,13 @@ WhatsApp: (21) 99282-6074"""
     if any(kw in msg_lower for kw in ['diferença', 'diferenca', 'comparar', 'qual escolher', 'melhor plano']):
         return f"""Diferenças principais:
 
-STARTER (R$320 + R$39,99/mês):
+STARTER (R$39,99/mês):
 - Site até 5 páginas
 - Design moderno padrão
 - 1.250 mensagens/mês comigo
 - SEO básico
 
-PROFESSIONAL (R$530 + R$79,99/mês):
+PROFESSIONAL (R$79,99/mês):
 - Páginas ilimitadas
 - Design 100% personalizado
 - 5.000 mensagens/mês comigo
@@ -752,10 +922,139 @@ def obter_dados_usuario_completos(user_id):
     try:
         if not supabase:
             return None
-        response = supabase.table('user_accounts').select('*').eq('user_id', user_id).single().execute()
-        return response.data if response.data else None
-    except:
+        campos = 'user_id,user_email,plan_name,plan_type,is_suspended,account_expires_at,next_billing,payment_method,first_login_at,dashboard_visits,last_visit_at,created_at,updated_at'
+        response = supabase.table('user_accounts').select(campos).eq('user_id', user_id).limit(1).execute()
+        if isinstance(response.data, list) and response.data:
+            return response.data[0]
+        if isinstance(response.data, dict):
+            return response.data
         return None
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar conta do usuário: {e}")
+        return None
+
+def obter_settings_usuario(user_id):
+    try:
+        if not supabase:
+            return {}
+        response = supabase.table('user_settings').select('settings').eq('user_id', user_id).limit(1).execute()
+        if isinstance(response.data, list) and response.data:
+            return response.data[0].get('settings') or {}
+        if isinstance(response.data, dict):
+            return response.data.get('settings') or {}
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar settings do usuário: {e}")
+    return {}
+
+def obter_creditos_usuario(user_id):
+    try:
+        if not supabase:
+            return {}
+        response = supabase.table('user_credits').select('create_ai_credits,last_reset').eq('user_id', user_id).limit(1).execute()
+        if isinstance(response.data, list) and response.data:
+            return response.data[0]
+        if isinstance(response.data, dict):
+            return response.data
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar créditos do usuário: {e}")
+    return {}
+
+def obter_resumo_projetos_usuario(user_id):
+    try:
+        if not supabase:
+            return {'total': 0, 'hospedados': 0, 'sites': []}
+        response = supabase.table('user_projects').select('id,name,preview_url,status,updated_at').eq('user_id', user_id).order('updated_at', desc=True).limit(12).execute()
+        projetos = response.data if isinstance(response.data, list) else []
+        sites = []
+        for projeto in projetos:
+            sites.append({
+                'name': str(projeto.get('name') or 'Projeto sem nome')[:80],
+                'hosted': bool(projeto.get('preview_url')),
+                'preview_url': projeto.get('preview_url') or None,
+                'status': projeto.get('status') or 'desconhecido'
+            })
+        return {
+            'total': len(projetos),
+            'hospedados': sum(1 for site in sites if site['hosted']),
+            'sites': sites
+        }
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar projetos do usuário: {e}")
+    return {'total': 0, 'hospedados': 0, 'sites': []}
+
+def montar_contexto_usuario_seguro(user_id, user_info, user_data, tipo_usuario, mensagens_usadas=0, limite=0, mensagens_restantes=0):
+    settings = obter_settings_usuario(user_id)
+    creditos = obter_creditos_usuario(user_id)
+    projetos = obter_resumo_projetos_usuario(user_id)
+    nome_settings = ' '.join(filter(None, [str(settings.get('firstName', '')).strip(), str(settings.get('lastName', '')).strip()])).strip()
+    nome = nome_settings or tipo_usuario.get('nome_real') or extrair_nome_usuario(user_info, user_data)
+    plano_tipo = tipo_usuario.get('tipo', 'free')
+    limite_formatado = 'ilimitado' if limite == float('inf') else limite
+    restantes_formatado = 'ilimitado' if mensagens_restantes == float('inf') else mensagens_restantes
+
+    return {
+        'nome': nome,
+        'email': user_data.get('user_email') or user_data.get('email') or getattr(user_info, 'email', ''),
+        'plano_tipo': plano_tipo,
+        'plano_nome': tipo_usuario.get('plano', plano_tipo.title()),
+        'limite_mensagens': limite_formatado,
+        'mensagens_usadas': mensagens_usadas,
+        'mensagens_restantes': restantes_formatado,
+        'conta_suspensa': bool(user_data.get('is_suspended')),
+        'expira_em': user_data.get('account_expires_at'),
+        'creditos_ia_legado': creditos.get('create_ai_credits', 0),
+        'ultimo_reset_creditos': creditos.get('last_reset'),
+        'projetos': projetos,
+        'preferencias_publicas': {
+            'dataSaver': settings.get('dataSaver'),
+            'desktopNotif': settings.get('desktopNotif')
+        }
+    }
+
+def obter_resumo_admin_usuarios():
+    try:
+        if not supabase:
+            return []
+        response = supabase.table('user_accounts').select('user_id,user_email,plan_name,plan_type,is_suspended,account_expires_at,updated_at').order('updated_at', desc=True).limit(80).execute()
+        usuarios = response.data if isinstance(response.data, list) else []
+        return [{
+            'user_id': str(u.get('user_id', ''))[:8] + '...',
+            'email': u.get('user_email'),
+            'plan_type': u.get('plan_type'),
+            'plan_name': u.get('plan_name'),
+            'is_suspended': bool(u.get('is_suspended')),
+            'account_expires_at': u.get('account_expires_at')
+        } for u in usuarios]
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar resumo admin: {e}")
+    return []
+
+def montar_contexto_seguro_ia(tipo_usuario, contexto_usuario):
+    tipo = tipo_usuario.get('tipo', 'free')
+    repo_context = atualizar_contexto_repositorio(incluir_codigo=(tipo == 'admin'))
+    contexto_publico = repo_context.get('public', '')
+    if tipo == 'admin':
+        contexto_repo = repo_context.get('admin') or contexto_publico
+        resumo_admin = obter_resumo_admin_usuarios()
+        usuarios_admin = f"\nResumo administrativo de usuários (somente admin autenticado): {resumo_admin}" if resumo_admin else ''
+    else:
+        contexto_repo = contexto_publico
+        usuarios_admin = ''
+
+    return f"""CONTEXTO SEGURO ATUAL DA NATANSITES:
+Usuario autenticado atual (somente dados do proprio usuario): {contexto_usuario}
+{usuarios_admin}
+
+Repositorio principal natansitesnew:
+{contexto_repo}
+
+REGRAS DE SEGURANCA OBRIGATORIAS:
+- Nunca revele API keys, tokens, senhas, service role, JWTs, variaveis .env ou credenciais.
+- Para clientes comuns, use o repositorio apenas para explicar recursos publicos do site; nao entregue codigo-fonte interno.
+- Nunca mostre dados de outros usuarios para clientes. Dados de outros usuarios so aparecem no contexto admin autenticado.
+- Se alguem pedir segredo, chave ou token, recuse e explique como configurar com seguranca.
+- Quando falar de planos, use os limites reais: Free 100 mensagens/semana, Starter 1.250 mensagens/mes, Professional 5.000 mensagens/mes, Admin ilimitado.
+"""
 
 def extrair_nome_usuario(user_info, user_data=None):
     try:
@@ -781,6 +1080,10 @@ def extrair_nome_usuario(user_info, user_data=None):
         if user_data and user_data.get('email'):
             nome = user_data['email'].split('@')[0].strip()
             return nome.capitalize()
+
+        if user_data and user_data.get('user_email'):
+            nome = user_data['user_email'].split('@')[0].strip()
+            return nome.capitalize()
         
         return "Cliente"
         
@@ -790,13 +1093,13 @@ def extrair_nome_usuario(user_info, user_data=None):
 
 def determinar_tipo_usuario(user_data, user_info=None):
     try:
-        email = user_data.get('email', '').lower().strip()
-        plan = str(user_data.get('plan', 'starter')).lower().strip()
-        plan_type = str(user_data.get('plan_type', 'paid')).lower().strip()
+        email = (user_data.get('email') or user_data.get('user_email') or '').lower().strip()
+        plan_type = normalizar_plano(user_data.get('plan_type') or user_data.get('plan') or 'free')
+        plan = normalizar_plano(user_data.get('plan') or plan_type)
         nome = extrair_nome_usuario(user_info, user_data)
         
         # ADMIN
-        if email == ADMIN_EMAIL.lower():
+        if email in ADMIN_EMAILS:
             return {
                 'tipo': 'admin',
                 'nome_display': 'Admin',
@@ -806,7 +1109,7 @@ def determinar_tipo_usuario(user_data, user_info=None):
             }
         
         # FREE ACCESS
-        if plan_type == 'free':
+        if plan_type == 'free' or plan == 'free':
             return {
                 'tipo': 'free',
                 'nome_display': 'Free Access',
@@ -1068,12 +1371,12 @@ FREE - R$0,00 (teste 1 ano)
 - 100 mensagens/semana comigo
 - Sites básicos sem uso comercial
 
-STARTER - R$320 (setup) + R$39,99/mês
+STARTER - R$39,99/mês
 - 1.250 mensagens/mês comigo
 - Site até 5 páginas
 - Hospedagem inclusa
 
-PROFESSIONAL - R$530 (setup) + R$79,99/mês
+PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês comigo
 - Páginas ilimitadas
 - Design personalizado
@@ -1126,7 +1429,7 @@ Vibrações Positivas! ✨"""
 # 🤖 PROCESSAMENTO OPENAI v8.2 - SISTEMA HÍBRIDO OTIMIZADO COM CONTEXTO COMPLETO
 # =============================================================================
 
-def processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria):
+def processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria, contexto_seguro=None):
     """
     Sistema híbrido OTIMIZADO v8.2 com contexto completo da plataforma:
     - FREE: gpt-4o-mini (básico) - Acesso gratuito permanente
@@ -1147,6 +1450,7 @@ def processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria):
         tipo = tipo_usuario.get('tipo', 'starter').lower()
         nome = tipo_usuario.get('nome_real', 'Cliente')
         plano = tipo_usuario.get('plano', 'Starter')
+        contexto_sistema = contexto_seguro or ''
         
         # Detecta categoria da mensagem
         categoria, config = detectar_categoria_mensagem(mensagem)
@@ -1181,7 +1485,7 @@ Você está usando o ACESSO GRATUITO PERMANENTE da plataforma! 🎉
 
 **PLANOS PAGOS DISPONÍVEIS (UPGRADE):**
 
-📦 STARTER - R$320 (setup único) + R$39,99/mês
+📦 STARTER - R$39,99/mês
 - 1.250 mensagens/mês comigo (12.5x mais que Free!)
 - Site profissional até 5 páginas
 - Hospedagem incluída por 1 ano
@@ -1193,7 +1497,7 @@ Você está usando o ACESSO GRATUITO PERMANENTE da plataforma! 🎉
 - Suporte via plataforma 24/7
 - Contrato de 1 ano
 
-💎 PROFESSIONAL - R$530 (setup único) + R$79,99/mês
+💎 PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês comigo (50x mais que Free!)
 - Páginas ILIMITADAS
 - Design 100% PERSONALIZADO (exclusivo)
@@ -1214,7 +1518,7 @@ Você está usando o ACESSO GRATUITO PERMANENTE da plataforma! 🎉
 1. Escolha seu plano (Starter ou Professional)
 2. Acesse a página do plano no menu lateral
 3. Preencha o formulário com: Nome completo, Data de nascimento, CPF
-4. Efetue o pagamento via PIX (R$320 Starter ou R$530 Professional)
+4. Efetue a assinatura pela página Assinaturas no dashboard
 5. Aguarde 10 minutos a 2 horas para criação da conta
 6. Você receberá confirmação por email quando estiver pronto!
 
@@ -1251,6 +1555,8 @@ REGRAS DE COMPORTAMENTO:
 Você está conversando com: {nome} (Plano {plano} - Gratuito Permanente)"""
 
             messages = [{"role": "system", "content": system_prompt}]
+            if contexto_sistema:
+                messages.append({"role": "system", "content": contexto_sistema})
             messages.extend(historico_memoria[-3:])
             messages.append({"role": "user", "content": mensagem})
             
@@ -1318,7 +1624,6 @@ Você é um cliente PAGO PREMIUM! 🌟
 - Configurações de personalização
 
 💰 **Investimento:**
-- Setup único: R$320,00 (pago uma vez)
 - Mensalidade: R$39,99/mês
 - Contrato: 1 ano
 - Renovação: Negociável após 1 ano
@@ -1333,7 +1638,7 @@ Você é um cliente PAGO PREMIUM! 🌟
 - SEM domínio
 - Conversas NÃO salvas
 
-💎 PROFESSIONAL (R$530 + R$79,99/mês):
+💎 PROFESSIONAL (R$79,99/mês):
 - 5.000 mensagens/mês (4x mais que Starter!)
 - Páginas ILIMITADAS
 - Design 100% PERSONALIZADO
@@ -1380,6 +1685,8 @@ REGRAS:
 Você está conversando com: {nome} (Cliente STARTER - Plano Pago Premium)"""
 
             messages_inicial = [{"role": "system", "content": system_prompt_base}]
+            if contexto_sistema:
+                messages_inicial.append({"role": "system", "content": contexto_sistema})
             messages_inicial.extend(historico_memoria[-5:])
             messages_inicial.append({"role": "user", "content": mensagem})
             
@@ -1433,6 +1740,9 @@ PERGUNTA DO USUÁRIO:
 {mensagem}
 
 CONTEXTO: Cliente Starter (plano pago R$39,99/mês)
+
+CONTEXTO SEGURO ATUAL:
+{contexto_sistema[:12000] if contexto_sistema else 'Indisponivel'}
 
 INSTRUÇÕES:
 - Mantenha TODAS as informações corretas da resposta inicial
@@ -1555,7 +1865,6 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 - Qualquer API REST ou GraphQL
 
 💰 **Investimento:**
-- Setup único: R$530,00 (pago uma vez)
 - Mensalidade: R$79,99/mês
 - Contrato: 1 ano
 - Renovação: Negociável após 1 ano
@@ -1570,7 +1879,7 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 - SEM hospedagem
 - Conversas NÃO salvas
 
-🌱 STARTER (R$320 + R$39,99/mês):
+🌱 STARTER (R$39,99/mês):
 - 1.250 mensagens/mês
 - Até 5 páginas apenas
 - Design padrão moderno
@@ -1578,7 +1887,7 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 - 2 revisões
 - SEM blog ou e-commerce
 
-💎 PROFESSIONAL (VOCÊ - R$530 + R$79,99/mês):
+💎 PROFESSIONAL (VOCÊ - R$79,99/mês):
 - 5.000 mensagens/mês (4x mais!)
 - Páginas ILIMITADAS
 - Design 100% PERSONALIZADO
@@ -1664,6 +1973,8 @@ REGRAS:
 Você está conversando com: {nome} (Cliente PROFESSIONAL - Premium TOP TIER 💎)"""
 
             messages_inicial = [{"role": "system", "content": system_prompt_base}]
+            if contexto_sistema:
+                messages_inicial.append({"role": "system", "content": contexto_sistema})
             messages_inicial.extend(historico_memoria[-5:])
             messages_inicial.append({"role": "user", "content": mensagem})
             
@@ -1719,6 +2030,9 @@ PERGUNTA DO USUÁRIO:
 {mensagem}
 
 CONTEXTO: Cliente Professional (plano premium R$79,99/mês) - TOP TIER 💎
+
+CONTEXTO SEGURO ATUAL:
+{contexto_sistema[:14000] if contexto_sistema else 'Indisponivel'}
 
 INSTRUÇÕES:
 - Mantenha TODAS as informações corretas da resposta inicial
@@ -1823,7 +2137,7 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
    - Marca d'água presente
    - Contrato: Permanente enquanto ativo
 
-2. **STARTER (R$ 320 setup + R$ 39,99/mês)**:
+2. **STARTER (R$ 39,99/mês)**:
    - NatanAI: 1.250 mensagens/mês
    - Site até 5 páginas
    - Design moderno responsivo
@@ -1835,7 +2149,7 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
    - Suporte 24/7 via plataforma
    - Contrato: 1 ano
 
-3. **PROFESSIONAL (R$ 530 setup + R$ 79,99/mês)**:
+3. **PROFESSIONAL (R$ 79,99/mês)**:
    - NatanAI: 5.000 mensagens/mês
    - Páginas ILIMITADAS
    - Design 100% PERSONALIZADO
@@ -2010,6 +2324,8 @@ REGRAS ADMIN:
 Você está conversando com: Natan (ADMIN - Criador da Plataforma)"""
 
             messages = [{"role": "system", "content": system_prompt}]
+            if contexto_sistema:
+                messages.append({"role": "system", "content": contexto_sistema})
             messages.extend(historico_memoria[-10:])
             messages.append({"role": "user", "content": mensagem})
             
@@ -2083,11 +2399,22 @@ def chat():
         print(f"📝 Mensagem: {mensagem[:50]}...")
         print(f"🔐 Token presente: {bool(token)}")
         print(f"🌐 Browser ID presente: {bool(browser_id)}")
-        print(f"📦 Body completo: {data}")
+        print(f"📦 Campos recebidos: {list((data or {}).keys())}")
         
         if not mensagem:
             print("❌ Mensagem vazia")
             return jsonify({'error': 'Mensagem vazia'}), 400
+
+        if mensagem_pede_segredos(mensagem):
+            print("🛡️ Pedido de segredo bloqueado antes do modelo")
+            return jsonify({
+                'response': resposta_bloqueio_segredos(),
+                'modelo_usado': 'Filtro de Segurança',
+                'tokens_usados': 0,
+                'categoria': 'seguranca',
+                'limite_atingido': False,
+                'timestamp': datetime.now().isoformat()
+            })
         
         # =================================================================
         # 🌐 VISITANTE ANÔNIMO (SEM TOKEN, COM BROWSER_ID)
@@ -2161,49 +2488,36 @@ def chat():
         # 👤 USUÁRIOS AUTENTICADOS (COMPORTAMENTO NORMAL)
         # =================================================================
         
-        # 🆕 NOVA LÓGICA: Aceita user_data do body OU busca via token
+        # Autenticacao segura: token Supabase e banco sao fonte de verdade.
         user_data_from_body = data.get('user_data')
-        
-        if user_data_from_body:
-            # Frontend enviou user_data completo no body
-            print("✅ Usando user_data do body")
-            user_info = type('obj', (object,), {
-                'id': user_data_from_body.get('user_id'),
-                'email': user_data_from_body.get('email'),
-                'user_metadata': {'name': user_data_from_body.get('name', 'Cliente')}
-            })()
-            
-            user_data = {
-                'user_id': user_data_from_body.get('user_id'),
-                'email': user_data_from_body.get('email'),
-                'plan': user_data_from_body.get('plan', 'starter'),
-                'plan_type': user_data_from_body.get('plan_type', 'paid'),
-                'user_name': user_data_from_body.get('name'),
-                'name': user_data_from_body.get('name')
-            }
-            
-        else:
-            # Fallback: buscar via token (comportamento antigo)
-            print("🔐 Buscando via token Supabase")
-            
-            # 🚨 CORREÇÃO: Se NÃO tem token e NÃO tem browser_id, retorna erro
-            if not token:
-                print("❌ Sem token e sem browser_id")
-                return jsonify({'error': 'Não autenticado. Envie browser_id ou token.'}), 401
-            
-            user_info = verificar_token_supabase(token)
-            if not user_info:
-                print("❌ Token inválido")
-                return jsonify({'error': 'Token inválido'}), 401
-            
-            user_data = obter_dados_usuario_completos(user_info.id)
-            if not user_data:
-                print("❌ Usuário não encontrado no banco")
-                return jsonify({'error': 'Usuário não encontrado'}), 404
-        
-        print(f"✅ User ID: {user_data.get('user_id', 'N/A')[:8]}...")
+
+        if not token:
+            print("❌ Sem token e sem browser_id")
+            return jsonify({'error': 'Não autenticado. Envie browser_id ou token.'}), 401
+
+        print("🔐 Validando token Supabase")
+        user_info = verificar_token_supabase(token)
+        if not user_info:
+            print("❌ Token inválido")
+            return jsonify({'error': 'Token inválido'}), 401
+
+        user_data = obter_dados_usuario_completos(user_info.id) or {}
+        if not user_data:
+            print("⚠️ Conta não encontrada em user_accounts; usando fallback seguro Free")
+
+        body_name = (user_data_from_body or {}).get('name') if isinstance(user_data_from_body, dict) else None
+        user_data.update({
+            'user_id': user_info.id,
+            'email': getattr(user_info, 'email', '') or user_data.get('user_email'),
+            'user_email': user_data.get('user_email') or getattr(user_info, 'email', ''),
+            'name': body_name or user_data.get('name'),
+            'user_name': body_name or user_data.get('user_name'),
+            'plan_type': normalizar_plano(user_data.get('plan_type') or 'free'),
+            'plan': normalizar_plano(user_data.get('plan') or user_data.get('plan_type') or 'free')
+        })
+
+        print(f"✅ User ID: {str(user_data.get('user_id', 'N/A'))[:8]}...")
         print(f"✅ Email: {user_data.get('email', 'N/A')}")
-        print(f"✅ Plan: {user_data.get('plan', 'N/A')}")
         print(f"✅ Plan Type: {user_data.get('plan_type', 'N/A')}")
         
         # 👤 Dados do usuário
@@ -2236,6 +2550,17 @@ def chat():
                 'tokens_usados': 0,
                 'categoria': 'alternativa'
             })
+
+        contexto_usuario = montar_contexto_usuario_seguro(
+            user_id,
+            user_info,
+            user_data,
+            tipo_usuario,
+            mensagens_usadas=msgs_usadas,
+            limite=limite,
+            mensagens_restantes=msgs_restantes
+        )
+        contexto_seguro_ia = montar_contexto_seguro_ia(tipo_usuario, contexto_usuario)
         
         # 🧠 Memória e contexto
         inicializar_memoria_usuario(user_id)
@@ -2246,7 +2571,7 @@ def chat():
         
         # 🤖 Processa com OpenAI
         print("🤖 Processando com OpenAI...")
-        resultado = processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria)
+        resultado = processar_mensagem_openai(mensagem, tipo_usuario, historico_memoria, contexto_seguro_ia)
         
         resposta = resultado['resposta']
         tokens_usados = resultado['tokens_usados']
@@ -2326,7 +2651,7 @@ def admin_stats():
         token = request.headers.get('Authorization', '')
         user_info = verificar_token_supabase(token)
         
-        if not user_info or user_info.email.lower() != ADMIN_EMAIL.lower():
+        if not eh_admin(user_info):
             return jsonify({'error': 'Acesso negado'}), 403
         
         with contador_lock:
@@ -2364,6 +2689,28 @@ def admin_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/admin/repo-context/refresh', methods=['POST'])
+def admin_refresh_repo_context():
+    """Força atualização do contexto seguro do repositório natansitesnew (apenas admin)."""
+    try:
+        token = request.headers.get('Authorization', '')
+        user_info = verificar_token_supabase(token)
+        if not eh_admin(user_info):
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        contexto = atualizar_contexto_repositorio(force=True, incluir_codigo=True)
+        return jsonify({
+            'success': True,
+            'repo': f'{NATANSITES_REPO_OWNER}/{NATANSITES_REPO_NAME}',
+            'branch': NATANSITES_REPO_BRANCH,
+            'sha': contexto.get('sha'),
+            'updated_at': contexto.get('updated_at').isoformat() if contexto.get('updated_at') else None,
+            'public_chars': len(contexto.get('public') or ''),
+            'admin_chars': len(contexto.get('admin') or '')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/admin/user/<user_id>/stats', methods=['GET'])
 def admin_user_stats(user_id):
     """Estatísticas de um usuário específico (apenas admin)"""
@@ -2371,7 +2718,7 @@ def admin_user_stats(user_id):
         token = request.headers.get('Authorization', '')
         user_info = verificar_token_supabase(token)
         
-        if not user_info or user_info.email.lower() != ADMIN_EMAIL.lower():
+        if not eh_admin(user_info):
             return jsonify({'error': 'Acesso negado'}), 403
         
         user_data = obter_dados_usuario_completos(user_id)
@@ -2420,7 +2767,7 @@ def admin_reset_all():
         token = request.headers.get('Authorization', '')
         user_info = verificar_token_supabase(token)
         
-        if not user_info or user_info.email.lower() != ADMIN_EMAIL.lower():
+        if not eh_admin(user_info):
             return jsonify({'error': 'Acesso negado'}), 403
         
         with contador_lock:
@@ -2473,12 +2820,12 @@ FREE - R$0,00 (teste 1 ano)
 - 100 mensagens/semana comigo
 - Sites básicos sem uso comercial
 
-STARTER - R$320 (setup) + R$39,99/mês
+STARTER - R$39,99/mês
 - 1.250 mensagens/mês comigo
 - Site até 5 páginas
 - Hospedagem inclusa
 
-PROFESSIONAL - R$530 (setup) + R$79,99/mês
+PROFESSIONAL - R$79,99/mês
 - 5.000 mensagens/mês comigo
 - Páginas ilimitadas
 - Design personalizado
@@ -2800,7 +3147,7 @@ def home():
                     </div>
                     <div style="text-align: right;">
                         <small>1.250 msgs/mês</small><br>
-                        <small>R$320 + R$39,99/mês</small>
+                        <small>R$39,99/mês</small>
                     </div>
                 </div>
                 
@@ -2811,7 +3158,7 @@ def home():
                     </div>
                     <div style="text-align: right;">
                         <small>5.000 msgs/mês</small><br>
-                        <small>R$530 + R$79,99/mês</small>
+                        <small>R$79,99/mês</small>
                     </div>
                 </div>
                 
@@ -2887,7 +3234,7 @@ def home():
                 name: 'Cliente Starter',
                 email: 'starter@teste.com',
                 limite: 1250,
-                info: '🌱 STARTER - 1.250 msgs/mês - Híbrido (gpt-4o-mini + gpt-4o) - R$320 + R$39,99/mês'
+                info: '🌱 STARTER - 1.250 msgs/mês - Híbrido (gpt-4o-mini + gpt-4o) - R$39,99/mês'
             },
             professional: {
                 plan: 'professional',
@@ -2896,7 +3243,7 @@ def home():
                 name: 'Cliente Pro',
                 email: 'pro@teste.com',
                 limite: 5000,
-                info: '💎 PROFESSIONAL - 5.000 msgs/mês - gpt-4o completo - R$530 + R$79,99/mês'
+                info: '💎 PROFESSIONAL - 5.000 msgs/mês - gpt-4o completo - R$79,99/mês'
             },
             admin: {
                 plan: 'admin',
