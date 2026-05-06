@@ -98,6 +98,17 @@ PALAVRAS_PEDIDO_SEGREDO = [
     'supabase key', 'stripe secret', 'github token'
 ]
 
+FLUXO_ATUAL_SITE = """FLUXO ATUAL DO SITE NATANSITES.COM.BR:
+- O cliente solicita um site dentro do dashboard pela aba Pedidos.
+- Na aba Pedidos, ele escolhe o tipo de pedido/plano, preenche o formulário e envia a solicitação.
+- Depois disso, o pedido fica registrado para acompanhamento e atendimento pelo administrador.
+- O cliente visualiza sites publicados na aba Hospedagem.
+- Domínios ficam em modo leitura para clientes; configuração e publicação são feitas pelo Admin Control.
+- Assinaturas de Starter/Professional são feitas pela aba Assinaturas.
+- Suporte é para dúvidas e atendimento, mas a solicitação inicial de site pelo sistema deve ser feita na aba Pedidos.
+Quando o usuário perguntar onde pedir/criar/solicitar um site pelo site, responda claramente: acesse Dashboard > Pedidos.
+Essa regra tem prioridade sobre textos antigos que mandam o cliente pedir site pelo suporte, WhatsApp ou e-mail."""
+
 # Armazena contadores de visitantes anônimos (por browser_id)
 CONTADOR_VISITANTES = {}
 visitantes_lock = threading.Lock()
@@ -771,13 +782,17 @@ E mais! Visite natansites.com.br para ver todos."""
     if any(kw in msg_lower for kw in ['como funciona', 'processo', 'etapas', 'passo a passo']):
         return f"""Processo simples:
 
-1. Escolha seu plano
-2. Preencha formulário de cadastro
-3. Efetue pagamento PIX
-4. Aguarde 10min a 2h para criação da conta
-5. Comece a usar!
+1. Acesse o dashboard da NatanSites.
+2. Clique na aba Pedidos no menu lateral.
+3. Escolha o tipo de site e preencha o formulário do pedido.
+4. Envie a solicitação para o administrador analisar.
+5. Acompanhe o projeto pelo dashboard; quando publicado, ele aparece em Hospedagem.
 
 WhatsApp: (21) 99282-6074"""
+
+    # PEDIDOS / CRIAR SITE
+    if any(kw in msg_lower for kw in ['pedir site', 'peço site', 'peco site', 'solicitar site', 'criar site', 'fazer site', 'faço um site', 'faco um site', 'como faço um site', 'como faco um site', 'quero um site', 'site aqui', 'onde peço', 'onde peco']):
+        return "Para pedir um site pelo próprio sistema, entre no dashboard e clique na aba Pedidos. Lá você escolhe o tipo de site, preenche o formulário e envia a solicitação para o administrador. Depois, você acompanha o andamento pelo painel; quando o site for publicado, ele aparece na aba Hospedagem."
     
     # TECNOLOGIAS
     if any(kw in msg_lower for kw in ['tecnologia', 'stack', 'linguagem', 'framework', 'código']):
@@ -807,11 +822,11 @@ Você tem suporte prioritário como cliente {tipo.upper()}."""
     if any(kw in msg_lower for kw in ['cadastro', 'cadastrar', 'registrar', 'criar conta', 'sign up']):
         return f"""Para se cadastrar:
 
-1. Escolha STARTER ou PROFESSIONAL
-2. Acesse a página do plano escolhido
-3. Preencha: Nome, Data Nasc, CPF
-4. Assine pela página Assinaturas no dashboard
-5. Aguarde criação da conta (10min a 2h)
+1. Entre no site natansites.com.br
+2. Crie sua conta ou faça login
+3. Para assinar, use a aba Assinaturas no dashboard
+4. Para pedir um site, use a aba Pedidos no dashboard
+5. Acompanhe seus sites pela aba Hospedagem
 
 WhatsApp para dúvidas: (21) 99282-6074"""
     
@@ -1068,6 +1083,8 @@ def montar_contexto_seguro_ia(tipo_usuario, contexto_usuario):
     return f"""CONTEXTO SEGURO ATUAL DA NATANSITES:
 Usuario autenticado atual (somente dados do proprio usuario): {contexto_usuario}
 {usuarios_admin}
+
+{FLUXO_ATUAL_SITE}
 
 Repositorio principal natansitesnew:
 {contexto_repo}
@@ -1539,12 +1556,11 @@ Você está usando o ACESSO GRATUITO PERMANENTE da plataforma! 🎉
 - Contrato de 1 ano
 
 **PROCESSO DE UPGRADE:**
-1. Escolha seu plano (Starter ou Professional)
-2. Acesse a página do plano no menu lateral
-3. Preencha o formulário com: Nome completo, Data de nascimento, CPF
-4. Efetue a assinatura pela página Assinaturas no dashboard
-5. Aguarde 10 minutos a 2 horas para criação da conta
-6. Você receberá confirmação por email quando estiver pronto!
+1. Faça login no dashboard
+2. Acesse a aba Assinaturas para escolher Starter ou Professional
+3. Para solicitar um site, acesse a aba Pedidos no menu lateral
+4. Preencha o formulário do pedido e envie a solicitação
+5. Acompanhe o site pelo dashboard; quando publicado, ele aparece em Hospedagem
 
 **CONTATO PARA DÚVIDAS:**
 - 📱 WhatsApp: (21) 99282-6074
@@ -1681,16 +1697,18 @@ Você é um cliente PAGO PREMIUM! 🌟
 - SEO: Meta tags, sitemap.xml, robots.txt, schema.org
 
 **PRAZOS E PROCESSO:**
-1. Briefing: Você descreve o que precisa
-2. Desenvolvimento: 3-20 dias (conforme complexidade)
-3. Revisão: Até 2 ajustes incluídos
-4. Entrega: Site online e funcionando
-5. Suporte: Disponível via plataforma
+1. Solicitação: Cliente abre a aba Pedidos no dashboard
+2. Pedido: Escolhe o tipo de site, preenche o formulário e envia
+3. Briefing: Natan analisa as informações do pedido
+4. Desenvolvimento: 3-20 dias (conforme complexidade)
+5. Revisão: Até 2 ajustes incluídos
+6. Entrega: Site online e visível na aba Hospedagem
 
 **CONTATO DIRETO:**
 - 📱 WhatsApp: (21) 99282-6074
 - 📧 Email: borgesnatan09@gmail.com
-- 💬 Suporte: Página dedicada na plataforma
+- 💬 Pedidos: aba correta para solicitar um site pelo sistema
+- 💬 Suporte: para dúvidas e atendimento durante o processo
 
 **PORTFÓLIO DO NATAN:**
 - espacofamiliares.com.br
@@ -1865,6 +1883,7 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 📊 **Dashboard e Ferramentas PREMIUM:**
 - Acesso completo ao dashboard NatanSites
 - Página "Meus Sites" com todos seus projetos
+- Página "Pedidos" para solicitar novos sites pelo próprio sistema
 - Suporte PRIORITÁRIO direto com Natan
 - Estatísticas avançadas de uso
 - Configurações de personalização total
@@ -1933,7 +1952,12 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 - Analytics: Google Analytics 4, Search Console, Hotjar, heatmaps
 
 **PROCESSO DE DESENVOLVIMENTO PREMIUM:**
-1. **Briefing Detalhado** (reunião de 1-2h):
+0. **Solicitação pelo site:**
+   - Acesse o dashboard da NatanSites
+   - Clique na aba Pedidos no menu lateral
+   - Escolha o tipo de site e envie o formulário do pedido
+
+1. **Briefing Detalhado**:
    - Objetivos do negócio
    - Público-alvo
    - Referências visuais
@@ -1968,7 +1992,8 @@ Você é um cliente PREMIUM TOP TIER! 💎✨
 **CONTATO PRIORITÁRIO:**
 - 📱 WhatsApp: (21) 99282-6074 (atendimento prioritário)
 - 📧 Email: borgesnatan09@gmail.com
-- 💬 Suporte: Página dedicada na plataforma (resposta rápida)
+- 💬 Pedidos: aba correta para solicitar/criar um site pelo sistema
+- 💬 Suporte: página dedicada para dúvidas e atendimento após o pedido
 
 **PORTFÓLIO PREMIUM DO NATAN:**
 - Espaço Familiares (espacofamiliares.com.br) - Site institucional
@@ -2187,14 +2212,14 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
    - Uso comercial PERMITIDO
    - Contrato: 1 ano
 
-**Fluxo de Cadastro:**
-1. Usuário preenche formulário (starter.html ou professional.html)
-2. Dados: Nome completo, Data de nascimento, CPF
-3. Pagamento via PIX (QR Code ou código copia-e-cola)
-4. Email enviado via EmailJS para borgesnatan09@gmail.com
-5. Admin cria conta manualmente em settings.html (seção admin)
-6. Prazo: 10 minutos a 2 horas
-7. Cliente recebe confirmação e credenciais
+**Fluxo atual para cliente pedir um site:**
+1. Usuário entra no dashboard da NatanSites
+2. Acessa a aba Pedidos no menu lateral
+3. Escolhe o tipo de site/pedido e preenche o formulário
+4. Envia a solicitação para o administrador
+5. Admin acompanha e executa o pedido pelo painel administrativo
+6. Quando publicado, o site aparece para o cliente na aba Hospedagem
+7. Domínios aparecem na aba Domínios em modo leitura para clientes
 
 **Sistema de Acesso Gratuito Permanente:**
 - Admin pode ativar/desativar em settings.html
@@ -2212,15 +2237,14 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
   * Conta free é deletada automaticamente
   * Apenas clientes pagos/cadastrados podem acessar
 
-**Funcionalidades Admin (settings.html):**
-- Criar novas contas (email, senha, nome, plano)
-- Buscar e gerenciar contas existentes
-- Reativar contas suspensas (adiciona +1 ano)
-- Suspender contas manualmente
-- Adicionar sites aos clientes (nome, URL, imagem)
-- Listar e remover sites cadastrados
-- Ativar/Desativar acesso gratuito permanente
-- Visualizar estatísticas completas
+**Funcionalidades Admin atuais (Admin Control):**
+- Buscar e gerenciar clientes
+- Ver projetos de cada cliente
+- Editar codigo de projetos quando necessario
+- Publicar/republicar projetos no Netlify
+- Desativar hospedagem
+- Vincular dominios aos projetos
+- Gerenciar conta/plano/suspensao quando aplicavel
 
 **NatanAI (natanai.html):**
 - Sistema híbrido inteligente:
@@ -2243,8 +2267,9 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
 
 **Suporte (suporte.html):**
 - Sistema de mensagens diretas com admin
-- Clientes FREE NÃO têm acesso (apenas dashboard/IA)
-- Clientes PAID: Chat direto com Natan
+- Usado para dúvidas e atendimento
+- Não é o fluxo principal para solicitar um site; solicitação de site é pela aba Pedidos
+- Clientes pagos têm atendimento prioritário
 - Admin vê lista de todas as conversas
 - Realtime via Supabase + Polling de backup
 - Notificações de mensagens não lidas
@@ -2267,12 +2292,24 @@ MELHORE E EXPANDA A RESPOSTA PREMIUM:"""
 
 **Websites (websites.html):**
 - Lista todos os sites do usuário
-- Busca na tabela `user_websites` por user_email
+- Mostra projetos/sites vinculados ao cliente
 - Empty states diferentes:
-  * FREE: Botão WhatsApp para contratar
-  * PAID sem sites: Botão para Suporte
+  * Sem sites: cliente deve usar Pedidos para solicitar um site
 - Cards com imagem, nome, URL e botão "Visitar Site"
-- Carregamento dinâmico via Supabase
+
+**Pedidos:**
+- Aba principal para solicitar/criar um site pela plataforma
+- Cliente preenche o formulário do pedido dentro do dashboard
+- Admin recebe e executa o pedido
+- Resposta correta para "onde peço um site?": aba Pedidos
+
+**Hospedagem:**
+- Cliente visualiza sites publicados/hospedados
+- Ações de publicar/desativar ficam no Admin Control
+
+**Domínios:**
+- Cliente visualiza domínios/sites publicados
+- Configuração de domínio fica no Admin Control
 
 **Settings (settings.html):**
 - Configurações gerais:
