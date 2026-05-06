@@ -27,6 +27,7 @@ ADMIN_EMAIL = "natan@natandev.com"
 ADMIN_EMAILS = {email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "natan@natandev.com,borgesnatan09@gmail.com,nandaxgn@gmail.com").split(',') if email.strip()}
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 RENDER_URL = os.getenv("RENDER_URL", "")
+NATANSITES_API_BASE = os.getenv("NATANSITES_API_BASE", "https://natansites.com.br")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 NATANSITES_REPO_OWNER = os.getenv("NATANSITES_REPO_OWNER", "natsongamesoficial551")
 NATANSITES_REPO_NAME = os.getenv("NATANSITES_REPO_NAME", "natansitesnew")
@@ -931,6 +932,29 @@ def obter_dados_usuario_completos(user_id):
         return None
     except Exception as e:
         print(f"⚠️ Erro ao buscar conta do usuário: {e}")
+        return None
+
+def obter_dados_usuario_site_principal(user_id, email=''):
+    """Fallback seguro para o site principal quando o JWT nao valida no Render da IA."""
+    try:
+        if not user_id:
+            return None
+        base = NATANSITES_API_BASE.rstrip('/')
+        url = f"{base}/api/user-data/{user_id}"
+        params = {'email': email or ''}
+        response = requests.get(url, params=params, timeout=15)
+        if response.status_code >= 400:
+            print(f"⚠️ Backend principal retornou {response.status_code} ao buscar usuário")
+            return None
+        data = response.json()
+        account = data.get('account') or {}
+        if not account:
+            return None
+        account['email'] = account.get('user_email') or email
+        account['plan'] = account.get('plan_type') or 'free'
+        return account
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar usuário no site principal: {e}")
         return None
 
 def obter_settings_usuario(user_id):
@@ -2498,10 +2522,26 @@ def chat():
         print("🔐 Validando token Supabase")
         user_info = verificar_token_supabase(token)
         if not user_info:
-            print("❌ Token inválido")
-            return jsonify({'error': 'Token inválido'}), 401
+            print("⚠️ Token inválido no Supabase da IA; tentando backend principal natansites")
+            if not isinstance(user_data_from_body, dict) or not user_data_from_body.get('user_id'):
+                print("❌ Token inválido e sem user_id do site principal")
+                return jsonify({'error': 'Token inválido'}), 401
 
-        user_data = obter_dados_usuario_completos(user_info.id) or {}
+            fallback_user_id = user_data_from_body.get('user_id')
+            fallback_email = user_data_from_body.get('email', '')
+            fallback_account = obter_dados_usuario_site_principal(fallback_user_id, fallback_email)
+            if not fallback_account:
+                return jsonify({'error': 'Não foi possível validar sua conta no site principal.'}), 401
+
+            user_info = type('obj', (object,), {
+                'id': fallback_user_id,
+                'email': fallback_account.get('user_email') or fallback_email,
+                'user_metadata': {'name': user_data_from_body.get('name', 'Cliente')}
+            })()
+            user_data = fallback_account
+        else:
+            user_data = obter_dados_usuario_completos(user_info.id) or {}
+
         if not user_data:
             print("⚠️ Conta não encontrada em user_accounts; usando fallback seguro Free")
 
